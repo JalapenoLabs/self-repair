@@ -22,6 +22,7 @@ function buildOptions(overrides: Partial<ResolvedOptions> = {}): ResolvedOptions
     issueTracker: 'github',
     maxParallelRepairs: 3,
     maxLogCount: 50,
+    verbose: false,
     claudeToken: 'test-claude-token',
     openaiToken: 'test-openai-token',
     ...overrides,

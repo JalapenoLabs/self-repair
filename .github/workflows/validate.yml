@@ -175,4 +175,5 @@ jobs:
           npx tsx src/cli.ts \
             --error "${ERROR_MESSAGE}" \
             --engine claude \
-            --repo "${{ github.repository }}"
+            --repo "${{ github.repository }}" \
+            --verbose

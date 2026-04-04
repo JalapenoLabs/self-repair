@@ -56,6 +56,9 @@ export type SelfRepairOptions = {
 
   /** Jira account email for basic auth. */
   jiraEmail?: string
+
+  /** Enable verbose logging of prompts and engine output. */
+  verbose?: boolean
 }
 
 // ─── Resolved Options (defaults applied, tokens resolved) ───────────────────
@@ -72,6 +75,7 @@ export type ResolvedOptions = {
   repo?: string
   customPrePrompt?: string
   additionalPrePromptContext?: Record<string, unknown>
+  verbose: boolean
   jiraHost?: string
   jiraProject?: string
   jiraApiToken?: string
@@ -115,6 +119,7 @@ export type EngineResult = {
 export type EngineInvokeOptions = {
   workingDirectory: string
   prompt: string
+  verbose?: boolean
 }
 
 export type EngineContract = {

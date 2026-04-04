@@ -185,6 +185,7 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     const bugReportResult = await engine.invoke({
       workingDirectory: cloneTarget,
       prompt: bugReportPrompt,
+      verbose: payload.options.verbose,
     })
 
     if (!bugReportResult.success) {
@@ -244,6 +245,7 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
       const repairResult = await engine.invoke({
         workingDirectory: cloneTarget,
         prompt: repairPrompt,
+        verbose: payload.options.verbose,
       })
 
       if (!repairResult.success) {
@@ -266,6 +268,7 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
         const makePrResult = await engine.invoke({
           workingDirectory: cloneTarget,
           prompt: makePrPrompt,
+          verbose: payload.options.verbose,
         })
 
         if (!makePrResult.success) {

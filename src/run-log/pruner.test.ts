@@ -1,5 +1,6 @@
 // Copyright © 2026 self-repair contributors
 
+import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -26,7 +27,8 @@ vi.mock('./writer.js', () => ({
 
 describe('pruneRunLogs', () => {
   beforeEach(() => {
-    testLogsDir = join(tmpdir(), `self-repair-test-${Date.now()}`)
+    const suffix = `${Date.now()}-${randomBytes(4).toString('hex')}`
+    testLogsDir = join(tmpdir(), `self-repair-test-${suffix}`)
     mkdirSync(testLogsDir, { recursive: true })
   })
 

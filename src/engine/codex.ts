@@ -4,7 +4,7 @@ import type { EngineContract, EngineInvokeOptions, EngineResult } from './types.
 
 import { Codex } from '@openai/codex-sdk'
 
-import { logInfo } from '../logger.js'
+import { logInfo, logVerbose, logVerboseStream } from '../logger.js'
 
 /**
  * Creates an engine that invokes OpenAI Codex via the official SDK.
@@ -13,6 +13,10 @@ import { logInfo } from '../logger.js'
 export function createCodexEngine(apiToken?: string): EngineContract {
   async function invoke(options: EngineInvokeOptions): Promise<EngineResult> {
     logInfo(`Invoking Codex engine in ${options.workingDirectory}`)
+
+    if (options.verbose) {
+      logVerbose('Prompt sent to Codex:', options.prompt)
+    }
 
     try {
       const codex = new Codex({
@@ -26,6 +30,39 @@ export function createCodexEngine(apiToken?: string): EngineContract {
         sandboxMode: 'danger-full-access',
       })
 
+      // In verbose mode, use streaming to show real-time output
+      if (options.verbose) {
+        const { events } = await thread.runStreamed(options.prompt)
+        const outputChunks: string[] = []
+
+        for await (const event of events) {
+          if (event.type === 'item.completed' && 'item' in event) {
+            const item = event.item as { type: string, text?: string }
+            if (item.text) {
+              outputChunks.push(item.text)
+              logVerboseStream(item.text + '\n')
+            }
+          }
+          else if (event.type === 'turn.completed' && 'usage' in event) {
+            if (options.verbose) {
+              logVerbose('Codex turn completed', JSON.stringify(event.usage, null, 2))
+            }
+          }
+        }
+
+        const finalOutput = outputChunks.join('\n')
+        if (options.verbose) {
+          logVerbose('Codex final output:', finalOutput)
+        }
+
+        return {
+          success: true,
+          output: finalOutput,
+          exitCode: 0,
+        }
+      }
+
+      // Non-verbose: use simple run()
       const result = await thread.run(options.prompt)
 
       return {

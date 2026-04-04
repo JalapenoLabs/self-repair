@@ -1,6 +1,7 @@
 // Copyright © 2026 self-repair contributors
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -22,7 +23,8 @@ let testSkillsSource: string
 
 describe('injectSkills', () => {
   beforeEach(() => {
-    const base = join(tmpdir(), `self-repair-test-${Date.now()}`)
+    const suffix = `${Date.now()}-${randomBytes(4).toString('hex')}`
+    const base = join(tmpdir(), `self-repair-test-${suffix}`)
     testTargetDir = join(base, 'repo')
     testSkillsSource = join(base, 'skills-source')
 

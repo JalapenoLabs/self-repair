@@ -30,6 +30,7 @@ program
   )
   .option('--run-in-production', 'Allow running in production environments')
   .option('--max-log-count <count>', 'Maximum number of run logs to keep', '50')
+  .option('--verbose', 'Log prompts and engine output for debugging')
   .action(async (flags: {
     error: string
     stack?: string
@@ -38,6 +39,7 @@ program
     issueTracker: string
     runInProduction?: boolean
     maxLogCount: string
+    verbose?: boolean
   }) => {
     try {
       logInfo('Starting self-repair in CLI mode...')
@@ -48,6 +50,7 @@ program
         runInProduction: flags.runInProduction ?? false,
         issueTracker: flags.issueTracker as 'github' | 'jira',
         maxLogCount: parseInt(flags.maxLogCount, 10),
+        verbose: flags.verbose ?? false,
         // Tokens are resolved from process.env (populated by dotenv)
         GITHUB_TOKEN: process.env.GITHUB_TOKEN,
         CLAUDE_API_TOKEN: process.env.ANTHROPIC_API_KEY ?? process.env.CLAUDE_API_KEY,

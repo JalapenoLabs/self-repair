@@ -5,7 +5,7 @@ import type { EngineContract, EngineInvokeOptions, EngineResult } from './types.
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { ENGINE_MAX_TURNS } from '../constants.js'
-import { logInfo } from '../logger.js'
+import { logInfo, logVerbose, logVerboseStream } from '../logger.js'
 
 /**
  * Creates an engine that invokes Claude Code via the official Agent SDK.
@@ -15,6 +15,10 @@ import { logInfo } from '../logger.js'
 export function createClaudeEngine(apiToken?: string): EngineContract {
   async function invoke(options: EngineInvokeOptions): Promise<EngineResult> {
     logInfo(`Invoking Claude engine in ${options.workingDirectory}`)
+
+    if (options.verbose) {
+      logVerbose('Prompt sent to Claude:', options.prompt)
+    }
 
     const outputChunks: string[] = []
 
@@ -42,7 +46,23 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
           )
           for (const block of textBlocks) {
             if ('text' in block) {
-              outputChunks.push(block.text as string)
+              const text = block.text as string
+              outputChunks.push(text)
+              if (options.verbose) {
+                logVerboseStream(text + '\n')
+              }
+            }
+          }
+        }
+
+        // Log tool use in verbose mode
+        if (options.verbose && message.type === 'assistant' && typeof message.message === 'object') {
+          const toolBlocks = message.message.content.filter(
+            (block: { type: string }) => block.type === 'tool_use',
+          )
+          for (const block of toolBlocks) {
+            if ('name' in block) {
+              logVerboseStream(`[tool: ${block.name}]\n`)
             }
           }
         }
@@ -51,6 +71,9 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
         if (message.type === 'result') {
           if (message.subtype === 'success') {
             outputChunks.push(message.result)
+            if (options.verbose) {
+              logVerbose('Claude final result:', message.result)
+            }
           }
         }
       }
