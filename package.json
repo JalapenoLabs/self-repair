@@ -1,0 +1,60 @@
+{
+  "name": "self-repair",
+  "version": "0.1.0",
+  "description": "Automatic bug diagnosis and repair for Node.js applications using LLM agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "license": "MIT",
+  "bin": "./dist/cli.js",
+  "files": [
+    "dist",
+    ".claude"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "precommit": "eslint . --fix && tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.92",
+    "@octokit/rest": "^21.0.0",
+    "@openai/codex-sdk": "^0.119.0-alpha.10",
+    "chalk": "^5.4.0",
+    "commander": "^13.0.0",
+    "dotenv": "^16.4.0",
+    "tmp-promise": "^3.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/config-helpers": "^0.5.4",
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.2.0",
+    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-plugin-license-header": "^0.9.0",
+    "globals": "^17.4.0",
+    "jiti": "^2.6.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "yarn@4.13.0"
+}

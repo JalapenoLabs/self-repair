@@ -1,0 +1,94 @@
+name: Smoke Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
+
+      - name: Verify dist output exists
+        run: |
+          echo "Checking build artifacts..."
+          test -f dist/index.js   || { echo "FAIL: dist/index.js missing"; exit 1; }
+          test -f dist/cli.js     || { echo "FAIL: dist/cli.js missing"; exit 1; }
+          test -f dist/index.d.ts || { echo "FAIL: dist/index.d.ts missing"; exit 1; }
+          echo "All build artifacts present."
+
+      - name: CLI --help smoke test
+        run: node dist/cli.js --help
+
+      - name: Library import smoke test
+        run: |
+          node --input-type=module <<'EOF'
+          import { setSelfRepairOptions, registerCrashHandler, startSelfRepair } from './dist/index.js'
+
+          // Verify all three public exports exist and are functions
+          const exports = { setSelfRepairOptions, registerCrashHandler, startSelfRepair }
+          for (const [name, fn] of Object.entries(exports)) {
+            if (typeof fn !== 'function') {
+              console.error(`FAIL: ${name} is ${typeof fn}, expected function`)
+              process.exit(1)
+            }
+            console.log(`✓ ${name} is a function`)
+          }
+
+          // Verify setSelfRepairOptions returns resolved options
+          const resolved = setSelfRepairOptions({ engine: 'claude', repo: 'test/repo' })
+          if (resolved.engine !== 'claude') {
+            console.error('FAIL: resolved.engine should be "claude"')
+            process.exit(1)
+          }
+          if (resolved.repo !== 'test/repo') {
+            console.error('FAIL: resolved.repo should be "test/repo"')
+            process.exit(1)
+          }
+          console.log('✓ setSelfRepairOptions returns correct resolved options')
+
+          // Verify defaults are applied
+          if (resolved.runInProduction !== false) {
+            console.error('FAIL: runInProduction should default to false')
+            process.exit(1)
+          }
+          if (resolved.maxParallelRepairs !== 3) {
+            console.error('FAIL: maxParallelRepairs should default to 3')
+            process.exit(1)
+          }
+          console.log('✓ Default options are applied correctly')
+
+          console.log('\nAll smoke tests passed.')
+          EOF
+
+      - name: Skills shipped with package
+        run: |
+          echo "Checking skill files..."
+          test -f .claude/skills/bug-report/SKILL.md || { echo "FAIL: bug-report skill missing"; exit 1; }
+          test -f .claude/skills/repair/SKILL.md     || { echo "FAIL: repair skill missing"; exit 1; }
+          test -f .claude/skills/make-pr/SKILL.md    || { echo "FAIL: make-pr skill missing"; exit 1; }
+          echo "All skill files present."
