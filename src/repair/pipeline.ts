@@ -280,11 +280,16 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
           const prInfo = parseJsonFromOutput<MakePrSkillOutput>(makePrResult.output)
           if (prInfo && payload.options.githubToken && payload.options.repo) {
             try {
+              // Ensure the PR title is prefixed, even if the skill forgot
+              const prTitle = prInfo.prTitle.startsWith('Self repair:')
+                ? prInfo.prTitle
+                : `Self repair: ${prInfo.prTitle}`
+
               const pullRequest = await createGitHubPullRequest(
                 payload.options.githubToken,
                 payload.options.repo,
                 {
-                  title: prInfo.prTitle,
+                  title: prTitle,
                   body: prInfo.prBody,
                   head: prInfo.branch,
                   base: 'main',
