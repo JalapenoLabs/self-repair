@@ -36,8 +36,7 @@
     "chalk": "^5.4.0",
     "commander": "^13.0.0",
     "dotenv": "^16.4.0",
-    "tmp-promise": "^3.0.3",
-    "zod": "^4.3.6"
+    "tmp-promise": "^3.0.3"
   },
   "devDependencies": {
     "@eslint/config-helpers": "^0.5.4",
