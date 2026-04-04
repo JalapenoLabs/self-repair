@@ -50,6 +50,14 @@ jobs:
         continue-on-error: true
         run: yarn build
 
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/junit.xml
+          if-no-files-found: warn
+
       - name: Summary
         run: |
           echo ""

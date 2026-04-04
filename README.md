@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="https://img.shields.io/npm/v/self-repair?style=flat-square&color=cb3837" alt="npm version" />
-  <img src="https://img.shields.io/github/actions/workflow/status/JalapenoLabs/self-repair/validate.yml?branch=main&style=flat-square&label=validate" alt="CI" />
-  <img src="https://img.shields.io/github/actions/workflow/status/JalapenoLabs/self-repair/smoke.yml?branch=main&style=flat-square&label=smoke" alt="Smoke" />
-  <img src="https://img.shields.io/npm/l/self-repair?style=flat-square" alt="license" />
-  <img src="https://img.shields.io/node/v/self-repair?style=flat-square" alt="node" />
+  <a href="https://www.npmjs.com/package/self-repair"><img src="https://img.shields.io/npm/v/self-repair?style=flat-square&color=cb3837" alt="npm version" /></a>
+  <a href="https://github.com/JalapenoLabs/self-repair/actions/workflows/validate.yml"><img src="https://github.com/JalapenoLabs/self-repair/actions/workflows/validate.yml/badge.svg?branch=main" alt="Validate" /></a>
+  <a href="https://github.com/JalapenoLabs/self-repair/actions/workflows/smoke.yml"><img src="https://github.com/JalapenoLabs/self-repair/actions/workflows/smoke.yml/badge.svg?branch=main" alt="Smoke Test" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="license" />
+  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square" alt="node >= 20" />
 </p>
 
 # self-repair

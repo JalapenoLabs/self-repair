@@ -9,5 +9,15 @@ export default defineConfig({
     include: [ 'src/**/*.test.ts' ],
     restoreMocks: true,
     pool: 'forks',
+    coverage: {
+      provider: 'v8',
+      reporter: [ 'text' ],
+      include: [ 'src/**/*.ts' ],
+      exclude: [ 'src/**/*.test.ts' ],
+    },
+    reporters: [ 'default', 'junit' ],
+    outputFile: {
+      junit: 'test-results/junit.xml',
+    },
   },
 })
