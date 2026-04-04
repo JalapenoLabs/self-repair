@@ -27,34 +27,37 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
+      # Each validation step pipes output to a log file so we can pass
+      # the actual error content to self-repair, not just "step X failed."
+
       - name: Install dependencies
         id: install
         continue-on-error: true
-        run: yarn install --immutable
+        run: yarn install --immutable 2>&1 | tee /tmp/sr-install.log
 
       - name: Lint
         id: lint
         if: steps.install.outcome == 'success'
         continue-on-error: true
-        run: yarn lint
+        run: yarn lint 2>&1 | tee /tmp/sr-lint.log
 
       - name: Typecheck
         id: typecheck
         if: steps.install.outcome == 'success'
         continue-on-error: true
-        run: yarn typecheck
+        run: yarn typecheck 2>&1 | tee /tmp/sr-typecheck.log
 
       - name: Unit Tests
         id: tests
         if: steps.install.outcome == 'success'
         continue-on-error: true
-        run: yarn test
+        run: yarn test 2>&1 | tee /tmp/sr-tests.log
 
       - name: Build
         id: build
         if: steps.install.outcome == 'success'
         continue-on-error: true
-        run: yarn build
+        run: yarn build 2>&1 | tee /tmp/sr-build.log
 
       # ─── Smoke Tests ────────────────────────────────────────────────
       # Quick sanity checks that the built package actually works.
@@ -145,11 +148,25 @@ jobs:
 
           FAILED=0
           FAILURES=""
+          ERROR_LOGS=""
+
+          # Helper: append last N lines of a log file to ERROR_LOGS if the step failed
+          collect_log() {
+            local step_name="$1"
+            local log_file="$2"
+            if [ -f "$log_file" ]; then
+              ERROR_LOGS="${ERROR_LOGS}--- ${step_name} output (last 30 lines) ---
+          $(tail -30 "$log_file")
+
+          "
+            fi
+          }
 
           if [ "${{ steps.install.outcome }}" != "success" ]; then
             echo -e "\033[31m✗ Install failed\033[0m"
             FAILURES="${FAILURES}Install failed. "
             FAILED=1
+            collect_log "Install" /tmp/sr-install.log
           fi
 
           if [ "${{ steps.lint.outcome }}" = "success" ]; then
@@ -158,6 +175,7 @@ jobs:
             echo -e "\033[31m✗ Lint failed\033[0m"
             FAILURES="${FAILURES}Lint failed. "
             FAILED=1
+            collect_log "Lint" /tmp/sr-lint.log
           fi
 
           if [ "${{ steps.typecheck.outcome }}" = "success" ]; then
@@ -166,6 +184,7 @@ jobs:
             echo -e "\033[31m✗ Typecheck failed\033[0m"
             FAILURES="${FAILURES}Typecheck failed. "
             FAILED=1
+            collect_log "Typecheck" /tmp/sr-typecheck.log
           fi
 
           if [ "${{ steps.tests.outcome }}" = "success" ]; then
@@ -174,6 +193,7 @@ jobs:
             echo -e "\033[31m✗ Unit tests failed\033[0m"
             FAILURES="${FAILURES}Unit tests failed. "
             FAILED=1
+            collect_log "Unit Tests" /tmp/sr-tests.log
           fi
 
           if [ "${{ steps.build.outcome }}" = "success" ]; then
@@ -182,6 +202,7 @@ jobs:
             echo -e "\033[31m✗ Build failed\033[0m"
             FAILURES="${FAILURES}Build failed. "
             FAILED=1
+            collect_log "Build" /tmp/sr-build.log
           fi
 
           if [ "${{ steps.smoke.outcome }}" = "success" ]; then
@@ -203,6 +224,10 @@ jobs:
           echo ""
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
           echo "failures=$FAILURES" >> "$GITHUB_OUTPUT"
+
+          # Write error logs to a file so the self-repair step can read them.
+          # GitHub outputs have a 1MB limit and multi-line values are tricky.
+          echo "$ERROR_LOGS" > /tmp/sr-error-context.log
 
           if [ "$FAILED" = "1" ]; then
             echo -e "\033[31mOne or more validation steps failed.\033[0m"
@@ -246,7 +271,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
           BRANCH: "${{ github.head_ref || github.ref_name }}"
           SHA: "${{ github.sha }}"
-          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           FAILURES: "${{ steps.summary.outputs.failures }}"
 
         run: |
@@ -261,9 +285,18 @@ jobs:
 
           ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}"
 
+          # Read the actual error output from failing steps (captured via tee)
+          STACK=""
+          if [ -f /tmp/sr-error-context.log ]; then
+            STACK=$(cat /tmp/sr-error-context.log)
+          fi
+
           echo ""
           echo -e "\033[35m[self-repair] Initiating self-repair for CI failure...\033[0m"
           echo -e "\033[35m[self-repair] Error: ${ERROR_MESSAGE}\033[0m"
+          if [ -n "$STACK" ]; then
+            echo -e "\033[35m[self-repair] Error context captured ($(wc -l < /tmp/sr-error-context.log) lines)\033[0m"
+          fi
           echo ""
 
           # On PRs: commit fix directly to the PR branch via --pr
@@ -276,6 +309,7 @@ jobs:
 
           npx tsx src/cli.ts \
             --error "${ERROR_MESSAGE}" \
+            --stack "${STACK}" \
             --engine claude \
             --repo "${{ github.repository }}" \
             --verbose \
