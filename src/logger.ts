@@ -3,6 +3,7 @@
 import chalk from 'chalk'
 
 import { LOG_PREFIX } from './constants'
+import { redact } from './redact'
 
 const prefix = chalk.bold.magenta(LOG_PREFIX)
 const verbosePrefix = chalk.bold.magenta(LOG_PREFIX) + chalk.dim(' [verbose]')
@@ -43,7 +44,7 @@ export function logStep(
 export function logVerbose(label: string, content: string): void {
   const header = `${verbosePrefix} ${chalk.dim(label)}`
   console.log(header)
-  console.log(chalk.dim(content))
+  console.log(chalk.dim(redact(content)))
   console.log('')
 }
 
@@ -52,5 +53,5 @@ export function logVerbose(label: string, content: string): void {
  * Used for real-time engine output during invocation.
  */
 export function logVerboseStream(content: string): void {
-  process.stdout.write(chalk.dim(content))
+  process.stdout.write(chalk.dim(redact(content)))
 }
