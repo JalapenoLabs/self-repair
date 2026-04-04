@@ -56,16 +56,8 @@ jobs:
         continue-on-error: true
         run: yarn build
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: test-results/junit.xml
-          if-no-files-found: warn
-
       - name: Test dashboard
-        if: always()
+        if: steps.tests.outcome == 'success' || steps.tests.outcome == 'failure'
         uses: test-summary/action@v2
         with:
           paths: test-results/junit.xml
@@ -135,9 +127,12 @@ jobs:
       # If any validation step failed, invoke self-repair against our own
       # repo to diagnose the issue, file a bug report, and attempt a fix.
       #
+      # Uses npx tsx to run from source so self-repair works even when
+      # the build step itself fails.
+      #
       # Conditions:
       #   - failed == '1': boolean flag, not a count. '1' means one or more steps failed.
-      #   - build succeeded: we need the built CLI (dist/cli.js) to run self-repair.
+      #   - install succeeded: we need node_modules to run from source.
       #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
       #     triggers CI, fails, and invokes self-repair again endlessly.
 
@@ -145,17 +140,18 @@ jobs:
         if: >-
           always()
           && steps.summary.outputs.failed == '1'
-          && steps.build.outcome == 'success'
+          && steps.install.outcome == 'success'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
-        run: |
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          SHA="${{ github.sha }}"
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          FAILURES="${{ steps.summary.outputs.failures }}"
+          BRANCH: "${{ github.head_ref || github.ref_name }}"
+          SHA: "${{ github.sha }}"
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          FAILURES: "${{ steps.summary.outputs.failures }}"
 
+        run: |
           ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}See: ${RUN_URL}"
 
           echo ""
@@ -163,7 +159,7 @@ jobs:
           echo -e "\033[35m[self-repair] Error: ${ERROR_MESSAGE}\033[0m"
           echo ""
 
-          node dist/cli.js \
+          npx tsx src/cli.ts \
             --error "${ERROR_MESSAGE}" \
             --engine claude \
             --repo "${{ github.repository }}"
