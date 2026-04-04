@@ -134,14 +134,19 @@ jobs:
       # ─── Self-Repair on failure ──────────────────────────────────────
       # If any validation step failed, invoke self-repair against our own
       # repo to diagnose the issue, file a bug report, and attempt a fix.
-      # Skipped on self-repair branches to prevent infinite loops.
+      #
+      # Conditions:
+      #   - failed == '1': boolean flag, not a count. '1' means one or more steps failed.
+      #   - build succeeded: we need the built CLI (dist/cli.js) to run self-repair.
+      #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
+      #     triggers CI, fails, and invokes self-repair again endlessly.
 
       - name: Self-repair
         if: >-
           always()
-          && steps.summary.outputs.failed == '1'  # boolean flag, not a count -- '1' means one or more steps failed
+          && steps.summary.outputs.failed == '1'
           && steps.build.outcome == 'success'
-          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')  # prevent infinite loops: don't self-repair on branches created by self-repair
+          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
