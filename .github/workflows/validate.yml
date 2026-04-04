@@ -132,15 +132,28 @@ jobs:
       #
       # Conditions:
       #   - failed == '1': boolean flag, not a count. '1' means one or more steps failed.
-      #   - install succeeded: we need node_modules to run from source.
       #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
       #     triggers CI, fails, and invokes self-repair again endlessly.
+
+      - name: Self-repair install
+        if: >-
+          always()
+          && steps.summary.outputs.failed == '1'
+          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+        run: |
+          # If the immutable install failed (e.g. lockfile mismatch), do a
+          # permissive install so we have node_modules to run tsx from source.
+          if [ "${{ steps.install.outcome }}" != "success" ]; then
+            echo "Primary install failed -- running permissive install for self-repair..."
+            yarn install
+          else
+            echo "Using existing node_modules from primary install."
+          fi
 
       - name: Self-repair
         if: >-
           always()
           && steps.summary.outputs.failed == '1'
-          && steps.install.outcome == 'success'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
 
         env:
