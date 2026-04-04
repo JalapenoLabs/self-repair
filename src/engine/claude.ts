@@ -5,7 +5,7 @@ import type { EngineContract, EngineInvokeOptions, EngineResult } from './types'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { ENGINE_MAX_TURNS } from '../constants'
-import { logInfo, logVerbose, logVerboseStream } from '../logger'
+import { logError, logInfo, logVerbose, logVerboseStream, logWarning } from '../logger'
 
 /**
  * Truncates a string for display in verbose logs.
@@ -27,7 +27,12 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
     logInfo(`Invoking Claude engine in ${options.workingDirectory}`)
 
     if (options.verbose) {
-      logVerbose('Prompt sent to Claude:', options.prompt)
+      const promptLength = options.prompt.length
+      const lineCount = options.prompt.split('\n').length
+      logVerbose(
+        'Prompt sent to Claude:',
+        `${lineCount} lines, ${promptLength} chars`,
+      )
     }
 
     const outputChunks: string[] = []
@@ -81,11 +86,44 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
 
         // Capture the final result
         if (message.type === 'result') {
-          if (message.subtype === 'success') {
-            outputChunks.push(message.result)
-            if (options.verbose) {
-              logVerbose('Claude final result:', message.result)
+          const resultMessage = message as {
+            subtype: string
+            result?: string
+            num_turns?: number
+            terminal_reason?: string
+          }
+
+          if (resultMessage.subtype === 'success') {
+            if (resultMessage.result) {
+              outputChunks.push(resultMessage.result)
             }
+            if (options.verbose) {
+              logVerbose('Claude final result:', resultMessage.result ?? '')
+            }
+          }
+
+          // Detect max turns hit -- this is a failure, not a success
+          if (
+            resultMessage.subtype === 'error_max_turns'
+            || resultMessage.terminal_reason === 'max_turns'
+          ) {
+            const turns = resultMessage.num_turns ?? ENGINE_MAX_TURNS
+            logError(
+              `Claude hit the maximum turn limit (${turns}/${ENGINE_MAX_TURNS}). `
+              + 'The agent ran out of steps before completing its task. '
+              + 'This usually means it got distracted or the task is too complex.',
+            )
+            return {
+              success: false,
+              output: `Max turns reached (${turns}/${ENGINE_MAX_TURNS}). `
+                + `Partial output:\n${outputChunks.join('\n')}`,
+              exitCode: 1,
+            }
+          }
+
+          // Log other error subtypes
+          if (resultMessage.subtype.startsWith('error_')) {
+            logWarning(`Claude returned error result: ${resultMessage.subtype}`)
           }
         }
       }

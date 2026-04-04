@@ -15,7 +15,12 @@ export function createCodexEngine(apiToken?: string): EngineContract {
     logInfo(`Invoking Codex engine in ${options.workingDirectory}`)
 
     if (options.verbose) {
-      logVerbose('Prompt sent to Codex:', options.prompt)
+      const promptLength = options.prompt.length
+      const lineCount = options.prompt.split('\n').length
+      logVerbose(
+        'Prompt sent to Codex:',
+        `${lineCount} lines, ${promptLength} chars`,
+      )
     }
 
     try {

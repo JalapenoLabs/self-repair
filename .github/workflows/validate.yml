@@ -259,7 +259,7 @@ jobs:
             echo "Using existing node_modules from primary install."
           fi
 
-          ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}See: ${RUN_URL}"
+          ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}"
 
           echo ""
           echo -e "\033[35m[self-repair] Initiating self-repair for CI failure...\033[0m"

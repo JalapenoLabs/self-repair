@@ -399,7 +399,7 @@ async function executePrRepairPipeline(
  *
  * Shared between the child-worker process (library mode) and the CLI (direct mode).
  */
-export async function executeRepairPipeline(payload: ChildWorkerPayload): Promise<void> {
+export async function executeRepairPipeline(payload: ChildWorkerPayload): Promise<RunLog['outcome']> {
   const isPrMode = typeof payload.options.pullRequestNumber === 'number'
   const totalSteps = isPrMode
     ? TOTAL_STEPS_PR_MODE
@@ -512,4 +512,6 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
       }
     }
   }
+
+  return runLog.outcome
 }

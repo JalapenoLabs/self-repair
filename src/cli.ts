@@ -71,7 +71,7 @@ program
       const options = getResolvedOptions()
 
       // In CLI mode, run the pipeline directly (no child process spawn)
-      await executeRepairPipeline({
+      const outcome = await executeRepairPipeline({
         options,
         trigger: {
           error: flags.error,
@@ -80,6 +80,10 @@ program
         },
         skillsSourcePath: resolveSkillsSourcePath(),
       })
+
+      if (outcome === 'failure') {
+        process.exit(1)
+      }
     }
     catch (error) {
       logError(`CLI error: ${error instanceof Error ? error.message : error}`)

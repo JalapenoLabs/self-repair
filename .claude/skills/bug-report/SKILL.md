@@ -15,6 +15,12 @@ Given an error message (and optionally a stack trace), investigate the repositor
 3. How severe it is
 4. How complex a fix would be
 
+## Constraints
+
+- Work ONLY with the source code in this repository and the error information provided.
+- Do NOT fetch CI logs, browse URLs, or use the `gh` CLI. You already have everything you need.
+- Do NOT investigate external services, APIs, or systems. Focus on the code.
+
 ## Process
 
 1. **Read the error carefully.** Identify file names, function names, and line numbers from the error and stack trace.
