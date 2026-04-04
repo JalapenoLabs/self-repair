@@ -222,7 +222,7 @@ jobs:
         # Don't self-repair branches that start with self-repair
         if: >-
           always()
-          && github.base_ref == 'main'
+          && (github.base_ref == 'main' || github.base_ref == 'develop')
           && steps.summary.outputs.failed == '1'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
         env:
