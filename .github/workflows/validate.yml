@@ -139,7 +139,7 @@ jobs:
       - name: Self-repair
         if: >-
           always()
-          && steps.summary.outputs.failed == '1'
+          && steps.summary.outputs.failed == '1'  # boolean flag, not a count -- '1' means one or more steps failed
           && steps.build.outcome == 'success'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
         env:
