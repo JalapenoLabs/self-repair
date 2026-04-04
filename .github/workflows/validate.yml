@@ -141,7 +141,7 @@ jobs:
           always()
           && steps.summary.outputs.failed == '1'  # boolean flag, not a count -- '1' means one or more steps failed
           && steps.build.outcome == 'success'
-          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')  # prevent infinite loops: don't self-repair on branches created by self-repair
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
