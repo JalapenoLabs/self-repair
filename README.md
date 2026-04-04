@@ -334,6 +334,14 @@ yarn build        # Production build
 
 ---
 
+## We Drink Our Own Kool-Aid
+
+This repo's CI pipeline uses `self-repair` on itself. If any validation step (lint, typecheck, tests, build) fails on `main` or `develop`, the workflow invokes `self-repair` against this repo to diagnose the failure, file an issue, and attempt a fix -- fully automated, no human in the loop.
+
+Check it out in [`.github/workflows/validate.yml`](.github/workflows/validate.yml).
+
+---
+
 ## License
 
 [MIT](LICENSE)
