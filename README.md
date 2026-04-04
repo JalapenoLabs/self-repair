@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://www.npmjs.com/package/self-repair"><img src="https://img.shields.io/npm/v/self-repair?style=flat-square&color=cb3837" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/self-repair"><img src="https://img.shields.io/npm/v/self-repair?style=flat-square" alt="npm version" /></a>
   <a href="https://github.com/JalapenoLabs/self-repair/actions/workflows/validate.yml"><img src="https://github.com/JalapenoLabs/self-repair/actions/workflows/validate.yml/badge.svg?branch=main" alt="Validate" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="license" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square" alt="node >= 20" />
@@ -11,7 +11,7 @@
 
 When your app crashes, `self-repair` spawns a fully detached background process that clones your repo, analyzes the failure with Claude or Codex, files a detailed bug report on GitHub or Jira, and -- if the fix is straightforward -- opens a pull request. Your app keeps running (or restarts) without ever blocking on the repair.
 
-```mermaid
+<!-- Mermaid source (edit this, then re-encode to base64 for the img tag below):
 flowchart LR
     A["App crashes"] --> B["Detached child\nprocess spawns"]
     A -. "app restarts\nimmediately" .-> R["App running"]
@@ -26,7 +26,10 @@ flowchart LR
     style G fill:#27ae60,color:#fff,stroke:none
     style H fill:#f39c12,color:#fff,stroke:none
     style R fill:#3498db,color:#fff,stroke:none
-```
+-->
+<p align="center">
+  <img src="https://mermaid.ink/img/Zmxvd2NoYXJ0IExSCiAgICBBWyJBcHAgY3Jhc2hlcyJdIC0tPiBCWyJEZXRhY2hlZCBjaGlsZFxucHJvY2VzcyBzcGF3bnMiXQogICAgQSAtLiAiYXBwIHJlc3RhcnRzXG5pbW1lZGlhdGVseSIgLi0+IFJbIkFwcCBydW5uaW5nIl0KICAgIEIgLS0+IENbIkNsb25lIHJlcG8iXQogICAgQyAtLT4gRFsiTExNIGRpYWdub3NpcyJdCiAgICBEIC0tPiBFWyJJc3N1ZSBmaWxlZCJdCiAgICBFIC0tPiBGeyJTaW1wbGVcbmZpeD8ifQogICAgRiAtLSBZZXMgLS0+IEdbIlBSIG9wZW5lZCJdCiAgICBGIC0tIE5vIC0tPiBIWyJNYW51YWwgcmV2aWV3Il0KCiAgICBzdHlsZSBBIGZpbGw6I2U3NGMzYyxjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBHIGZpbGw6IzI3YWU2MCxjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBIIGZpbGw6I2YzOWMxMixjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBSIGZpbGw6IzM0OThkYixjb2xvcjojZmZmLHN0cm9rZTpub25lCg==" alt="self-repair pipeline flow" />
+</p>
 
 ---
 
@@ -170,7 +173,7 @@ All options are optional except `repo` (required for cloning and issue/PR creati
 
 ## How It Works
 
-```mermaid
+<!-- Mermaid source (edit this, then re-encode to base64 for the img tag below):
 flowchart TD
     A["Error detected"] --> B{"Duplicate?\n(10-min window)"}
     B -- Yes --> Z1["Skip"]
@@ -206,7 +209,10 @@ flowchart TD
     style O fill:#27ae60,color:#fff,stroke:none
     style Q fill:#f39c12,color:#fff,stroke:none
     style child fill:#f8f9fa,stroke:#dee2e6,color:#333
-```
+-->
+<p align="center">
+  <img src="https://mermaid.ink/img/Zmxvd2NoYXJ0IFRECiAgICBBWyJFcnJvciBkZXRlY3RlZCJdIC0tPiBCeyJEdXBsaWNhdGU/XG4oMTAtbWluIHdpbmRvdykifQogICAgQiAtLSBZZXMgLS0+IFoxWyJTa2lwIl0KICAgIEIgLS0gTm8gLS0+IEN7IkF0IG1heFxuY29uY3VycmVuY3k/In0KICAgIEMgLS0gWWVzIC0tPiBaMlsiRHJvcCJdCiAgICBDIC0tIE5vIC0tPiBEWyJTcGF3biBkZXRhY2hlZFxuY2hpbGQgcHJvY2VzcyJdCiAgICBBIC0uICJwYXJlbnQgY29udGludWVzXG5vciByZXN0YXJ0cyIgLi0+IFBbIkFwcCBydW5uaW5nIl0KCiAgICBzdWJncmFwaCBjaGlsZCBbIkNoaWxkIHByb2Nlc3MgKGZ1bGx5IGRldGFjaGVkKSJdCiAgICAgICAgZGlyZWN0aW9uIFRCCiAgICAgICAgRCAtLT4gRVsiQ3JlYXRlIHRlbXAgZGlyIl0KICAgICAgICBFIC0tPiBGWyJnaXQgY2xvbmUgLS1kZXB0aD0xIl0KICAgICAgICBGIC0tPiBHWyJJbmplY3QgTExNIHNraWxscyJdCiAgICAgICAgRyAtLT4gSFsiRW5naW5lOiAvYnVnLXJlcG9ydFxu4oaSIHN0cnVjdHVyZWQgSlNPTiJdCiAgICAgICAgSCAtLT4gSXsiRXhpc3Rpbmdcbmlzc3VlPyJ9CiAgICAgICAgSSAtLSBObyAtLT4gSlsiQ3JlYXRlIGlzc3VlIl0KICAgICAgICBJIC0tIFllcyAtLT4gS1siTGluayB0byBleGlzdGluZyJdCiAgICAgICAgSiAtLT4gTHsiQ29tcGxleGl0eT8ifQogICAgICAgIEsgLS0+IEwKICAgICAgICBMIC0tIHNpbXBsZSAtLT4gTVsiRW5naW5lOiAvcmVwYWlyXG7ihpIgY29kZSBjaGFuZ2VzIl0KICAgICAgICBNIC0tPiBOWyJFbmdpbmU6IC9tYWtlLXByXG7ihpIgYnJhbmNoICsgcHVzaCJdCiAgICAgICAgTiAtLT4gT1siQ3JlYXRlIFBSIHZpYVxuR2l0SHViIEFQSSJdCiAgICAgICAgTCAtLSBjb21wbGV4IC0tPiBRWyJTa2lwIHJlcGFpclxuKGlzc3VlIG9ubHkpIl0KICAgICAgICBPIC0tPiBXWyJXcml0ZSBydW4gbG9nIl0KICAgICAgICBRIC0tPiBXCiAgICAgICAgVyAtLT4gWFsiQ2xlYW4gdXAgdGVtcCBkaXIiXQogICAgZW5kCgogICAgc3R5bGUgQSBmaWxsOiNlNzRjM2MsY29sb3I6I2ZmZixzdHJva2U6bm9uZQogICAgc3R5bGUgUCBmaWxsOiMzNDk4ZGIsY29sb3I6I2ZmZixzdHJva2U6bm9uZQogICAgc3R5bGUgWjEgZmlsbDojOTVhNWE2LGNvbG9yOiNmZmYsc3Ryb2tlOm5vbmUKICAgIHN0eWxlIFoyIGZpbGw6Izk1YTVhNixjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBPIGZpbGw6IzI3YWU2MCxjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBRIGZpbGw6I2YzOWMxMixjb2xvcjojZmZmLHN0cm9rZTpub25lCiAgICBzdHlsZSBjaGlsZCBmaWxsOiNmOGY5ZmEsc3Ryb2tlOiNkZWUyZTYsY29sb3I6IzMzMwo=" alt="self-repair detailed pipeline" />
+</p>
 
 ### Skills
 

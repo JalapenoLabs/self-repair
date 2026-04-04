@@ -13,7 +13,36 @@
     }
   },
   "license": "MIT",
-  "bin": "./dist/cli.js",
+  "author": {
+    "name": "Alex Navarro",
+    "organization": "Jalapeno Labs",
+    "email": "alex@jalapenolabs.io",
+    "url": "https://jalapenolabs.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JalapenoLabs/self-repair.git"
+  },
+  "keywords": [
+    "self-healing",
+    "self-repair",
+    "llm",
+    "bug-repair",
+    "automation",
+    "claude",
+    "codex",
+    "nodejs",
+    "crash-handler",
+    "ai",
+    "devops"
+  ],
+  "bugs": {
+    "url": "https://github.com/JalapenoLabs/self-repair/issues"
+  },
+  "homepage": "https://github.com/JalapenoLabs/self-repair#readme",
+  "bin": {
+    "self-repair": "dist/cli.js"
+  },
   "files": [
     "dist",
     ".claude"
