@@ -58,6 +58,12 @@ jobs:
           path: test-results/junit.xml
           if-no-files-found: warn
 
+      - name: Test dashboard
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: test-results/junit.xml
+
       - name: Summary
         run: |
           echo ""
