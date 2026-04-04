@@ -59,6 +59,13 @@ export type SelfRepairOptions = {
 
   /** Enable verbose logging of prompts and engine output. */
   verbose?: boolean
+
+  /**
+   * When set, repair commits directly to the source branch of this PR number
+   * instead of creating a new issue and PR. Useful for CI self-repair where
+   * the fix should land on the branch that triggered the failure.
+   */
+  pullRequestNumber?: number
 }
 
 // ─── Resolved Options (defaults applied, tokens resolved) ───────────────────
@@ -76,6 +83,7 @@ export type ResolvedOptions = {
   customPrePrompt?: string
   additionalPrePromptContext?: Record<string, unknown>
   verbose: boolean
+  pullRequestNumber?: number
   jiraHost?: string
   jiraProject?: string
   jiraApiToken?: string

@@ -219,15 +219,25 @@ jobs:
       #
       # Conditions:
       #   - failed == '1': boolean flag, not a count. '1' means one or more steps failed.
+      #   - branch guard: only fires on main/develop (push) or PRs targeting main/develop.
+      #     github.base_ref is set for PRs (target branch), github.ref_name for pushes.
       #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
       #     triggers CI, fails, and invokes self-repair again endlessly.
+      #
+      # On PRs: passes --pr <number> so the fix is committed directly to the PR branch.
+      # On pushes: creates a new issue + new PR (standard mode).
 
       - name: Self-repair
         if: >-
           always()
-          && (github.base_ref == 'main' || github.base_ref == 'develop')
           && steps.summary.outputs.failed == '1'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+          && (
+            github.base_ref == 'main'
+            || github.base_ref == 'develop'
+            || github.ref_name == 'main'
+            || github.ref_name == 'develop'
+          )
 
         timeout-minutes: 15
 
@@ -256,8 +266,17 @@ jobs:
           echo -e "\033[35m[self-repair] Error: ${ERROR_MESSAGE}\033[0m"
           echo ""
 
+          # On PRs: commit fix directly to the PR branch via --pr
+          # On pushes: create a new issue + PR (standard mode)
+          PR_FLAG=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_FLAG="--pr ${{ github.event.pull_request.number }}"
+            echo -e "\033[35m[self-repair] PR mode: fixing PR #${{ github.event.pull_request.number }} in-place\033[0m"
+          fi
+
           npx tsx src/cli.ts \
             --error "${ERROR_MESSAGE}" \
             --engine claude \
             --repo "${{ github.repository }}" \
-            --verbose
+            --verbose \
+            $PR_FLAG

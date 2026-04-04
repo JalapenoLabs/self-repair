@@ -8,23 +8,30 @@ import type {
   RunLogStep,
 } from '../types'
 
+import { execFile } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { promisify } from 'node:util'
 
 import { dir as createTmpDir } from 'tmp-promise'
 
 import { createEngine } from '../engine/factory'
+import { checkoutPrBranch } from '../git/checkout-pr'
 import { cloneRepository } from '../git/clone'
 import { createIssueTracker } from '../issue-tracker/factory'
 import { logError, logStep, logSuccess } from '../logger'
+import { commentOnPullRequest } from '../pull-request/comment'
 import { createGitHubPullRequest } from '../pull-request/github'
 import { pruneRunLogs } from '../run-log/pruner'
 import { writeRunLog } from '../run-log/writer'
 import { injectSkills } from '../skills/inject'
 import { computeErrorHash } from './deduplication'
 
-const TOTAL_STEPS = 7
+const execFileAsync = promisify(execFile)
+
+const TOTAL_STEPS_STANDARD = 7
+const TOTAL_STEPS_PR_MODE = 6
 
 /**
  * Reads a skill SKILL.md file from the injected skills directory
@@ -125,13 +132,279 @@ function recordStep(
 }
 
 /**
+ * Commits and pushes all changes in the working directory to the current branch.
+ * Used in PR repair mode where the LLM has already made changes.
+ */
+async function commitAndPush(
+  repoDir: string,
+  commitMessage: string,
+): Promise<boolean> {
+  try {
+    // Check if there are any changes to commit
+    const { stdout: status } = await execFileAsync(
+      'git', [ 'status', '--porcelain' ],
+      { cwd: repoDir },
+    )
+    if (!status.trim()) {
+      logError('No changes to commit after repair.')
+      return false
+    }
+
+    await execFileAsync('git', [ 'add', '-A' ], { cwd: repoDir })
+    await execFileAsync(
+      'git',
+      [ 'commit', '-m', commitMessage ],
+      { cwd: repoDir },
+    )
+    await execFileAsync('git', [ 'push' ], { cwd: repoDir })
+    logSuccess('Changes committed and pushed to PR branch.')
+    return true
+  }
+  catch (error) {
+    logError(`Failed to commit and push: ${error}`)
+    return false
+  }
+}
+
+// ─── Standard Pipeline (new issue + new PR) ─────────────────────────────────
+
+/**
+ * The standard repair pipeline: diagnose, file issue, attempt repair, open PR.
+ */
+async function executeStandardPipeline(
+  payload: ChildWorkerPayload,
+  engine: ReturnType<typeof createEngine>,
+  cloneTarget: string,
+  skillsDir: string,
+  bugReport: BugReport,
+  errorHash: string,
+  steps: RunLogStep[],
+  runLog: RunLog,
+): Promise<void> {
+  // Check for existing issue
+  logStep(5, TOTAL_STEPS_STANDARD, 'Checking for existing issues...')
+  let stepStart = Date.now()
+  const issueTracker = createIssueTracker(payload.options)
+  const existingIssue = await issueTracker.findExistingIssue(errorHash)
+
+  if (existingIssue) {
+    logSuccess(`Found existing issue: ${existingIssue.url}`)
+    runLog.issueUrl = existingIssue.url
+    recordStep(steps, 'check-existing-issue', stepStart, true, `Existing: ${existingIssue.url}`)
+  }
+  else {
+    const newIssue = await issueTracker.createIssue(bugReport, errorHash)
+    runLog.issueUrl = newIssue.url
+    recordStep(steps, 'create-issue', stepStart, true, `Created: ${newIssue.url}`)
+  }
+
+  // Assess complexity
+  logStep(6, TOTAL_STEPS_STANDARD, 'Assessing complexity...')
+  stepStart = Date.now()
+
+  if (bugReport.complexity === 'complex') {
+    logSuccess(
+      'Bug is assessed as complex -- skipping automated repair. '
+      + 'A detailed issue has been filed for manual review.',
+    )
+    recordStep(steps, 'complexity-check', stepStart, true, 'complex -- skipping repair')
+    runLog.outcome = 'partial'
+    return
+  }
+
+  recordStep(steps, 'complexity-check', stepStart, true, 'simple -- attempting repair')
+
+  // Attempt repair
+  logStep(7, TOTAL_STEPS_STANDARD, 'Attempting automated repair...')
+  stepStart = Date.now()
+  const repairSkill = readSkillContent(skillsDir, 'repair')
+  const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
+  const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
+  const repairResult = await engine.invoke({
+    workingDirectory: cloneTarget,
+    prompt: repairPrompt,
+    verbose: payload.options.verbose,
+  })
+
+  if (!repairResult.success) {
+    recordStep(steps, 'repair', stepStart, false, repairResult.output)
+    logError('Automated repair failed. The issue has been filed for manual review.')
+    runLog.outcome = 'partial'
+    return
+  }
+
+  recordStep(steps, 'repair', stepStart, true, repairResult.output)
+
+  // Create PR via make-pr skill
+  stepStart = Date.now()
+  const makePrSkill = readSkillContent(skillsDir, 'make-pr')
+  const prContext = [
+    `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``,
+    `## Issue Reference\n${runLog.issueUrl ?? 'No issue URL available'}`,
+    `## Changes Made\n${repairResult.output}`,
+  ].join('\n\n')
+  const makePrPrompt = buildPrompt(payload, makePrSkill, prContext)
+  const makePrResult = await engine.invoke({
+    workingDirectory: cloneTarget,
+    prompt: makePrPrompt,
+    verbose: payload.options.verbose,
+  })
+
+  if (!makePrResult.success) {
+    recordStep(steps, 'make-pr', stepStart, false, makePrResult.output)
+    logError('PR creation via engine failed.')
+    runLog.outcome = 'partial'
+    return
+  }
+
+  const prInfo = parseJsonFromOutput<MakePrSkillOutput>(makePrResult.output)
+  if (prInfo && payload.options.githubToken && payload.options.repo) {
+    try {
+      const prTitle = prInfo.prTitle.toLowerCase().startsWith('self repair:')
+        ? prInfo.prTitle
+        : `Self repair: ${prInfo.prTitle}`
+
+      const pullRequest = await createGitHubPullRequest(
+        payload.options.githubToken,
+        payload.options.repo,
+        {
+          title: prTitle,
+          body: prInfo.prBody,
+          head: prInfo.branch,
+          base: 'main',
+        },
+      )
+      runLog.pullRequestUrl = pullRequest.url
+      recordStep(steps, 'make-pr', stepStart, true, pullRequest.url)
+      logSuccess(`Pull request created: ${pullRequest.url}`)
+      runLog.outcome = 'success'
+    }
+    catch (prError) {
+      recordStep(steps, 'make-pr', stepStart, false, String(prError))
+      logError(`GitHub PR creation failed: ${prError}`)
+      runLog.outcome = 'partial'
+    }
+  }
+  else {
+    recordStep(steps, 'make-pr', stepStart, false, 'Missing PR info or tokens')
+    runLog.outcome = 'partial'
+  }
+}
+
+// ─── PR Repair Pipeline (commit to existing PR) ─────────────────────────────
+
+/**
+ * PR repair mode: diagnose, repair, commit directly to the PR's branch.
+ * Skips issue creation and new PR creation entirely.
+ */
+async function executePrRepairPipeline(
+  payload: ChildWorkerPayload,
+  engine: ReturnType<typeof createEngine>,
+  cloneTarget: string,
+  skillsDir: string,
+  bugReport: BugReport,
+  steps: RunLogStep[],
+  runLog: RunLog,
+): Promise<void> {
+  const prNumber = payload.options.pullRequestNumber!
+
+  // Checkout the PR's source branch
+  logStep(5, TOTAL_STEPS_PR_MODE, `Checking out PR #${prNumber} branch...`)
+  let stepStart = Date.now()
+
+  if (!payload.options.githubToken || !payload.options.repo) {
+    throw new Error('self-repair: githubToken and repo are required for PR repair mode.')
+  }
+
+  const branchName = await checkoutPrBranch(
+    cloneTarget,
+    prNumber,
+    payload.options.githubToken,
+    payload.options.repo,
+  )
+  recordStep(steps, 'checkout-pr-branch', stepStart, true, branchName)
+
+  // Attempt repair
+  logStep(6, TOTAL_STEPS_PR_MODE, 'Attempting automated repair...')
+  stepStart = Date.now()
+  const repairSkill = readSkillContent(skillsDir, 'repair')
+  const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
+  const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
+  const repairResult = await engine.invoke({
+    workingDirectory: cloneTarget,
+    prompt: repairPrompt,
+    verbose: payload.options.verbose,
+  })
+
+  if (!repairResult.success) {
+    recordStep(steps, 'repair', stepStart, false, repairResult.output)
+    logError(`Automated repair failed for PR #${prNumber}.`)
+    runLog.outcome = 'partial'
+    return
+  }
+
+  recordStep(steps, 'repair', stepStart, true, repairResult.output)
+
+  // Commit and push directly to the PR branch
+  stepStart = Date.now()
+  const commitMessage = `fix: ${bugReport.title} (self-repair)`
+  const pushed = await commitAndPush(cloneTarget, commitMessage)
+
+  if (!pushed) {
+    recordStep(steps, 'commit-to-pr', stepStart, false, 'No changes or push failed')
+    runLog.outcome = 'partial'
+    return
+  }
+
+  recordStep(steps, 'commit-to-pr', stepStart, true, `Pushed to ${branchName}`)
+
+  // Post a comment on the PR summarizing the fix
+  try {
+    const commentBody = [
+      `## Self-Repair Fix`,
+      '',
+      `**Bug:** ${bugReport.title}`,
+      `**Severity:** \`${bugReport.severity}\``,
+      '',
+      `### Changes`,
+      repairResult.output.slice(0, 2000),
+      '',
+      '---',
+      '*Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*',
+    ].join('\n')
+
+    await commentOnPullRequest(
+      payload.options.githubToken,
+      payload.options.repo,
+      prNumber,
+      commentBody,
+    )
+  }
+  catch (commentError) {
+    // Commenting is best-effort, don't fail the pipeline
+    logError(`Failed to post PR comment: ${commentError}`)
+  }
+
+  runLog.pullRequestUrl = `https://github.com/${payload.options.repo}/pull/${prNumber}`
+  logSuccess(`Fix committed to PR #${prNumber} on branch ${branchName}`)
+  runLog.outcome = 'success'
+}
+
+// ─── Main Entry Point ───────────────────────────────────────────────────────
+
+/**
  * The core repair pipeline. This is the heart of self-repair: it clones the
- * repo, invokes the LLM to diagnose the bug, files an issue, and optionally
- * creates a PR with a fix.
+ * repo, invokes the LLM to diagnose the bug, and either files an issue + opens
+ * a PR (standard mode) or commits directly to an existing PR (PR repair mode).
  *
  * Shared between the child-worker process (library mode) and the CLI (direct mode).
  */
 export async function executeRepairPipeline(payload: ChildWorkerPayload): Promise<void> {
+  const isPrMode = typeof payload.options.pullRequestNumber === 'number'
+  const totalSteps = isPrMode
+    ? TOTAL_STEPS_PR_MODE
+    : TOTAL_STEPS_STANDARD
+
   const errorHash = computeErrorHash(payload.trigger)
   const steps: RunLogStep[] = []
   const runLog: RunLog = {
@@ -144,12 +417,16 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     outcome: 'failure',
   }
 
+  if (isPrMode) {
+    logStep(0, totalSteps, `PR repair mode: fixing PR #${payload.options.pullRequestNumber}`)
+  }
+
   let tmpDirPath: string | null = null
   let cleanupTmpDir: (() => Promise<void>) | null = null
 
   try {
     // Step 1: Create temp directory
-    logStep(1, TOTAL_STEPS, 'Creating temporary workspace...')
+    logStep(1, totalSteps, 'Creating temporary workspace...')
     let stepStart = Date.now()
     const tmpResult = await createTmpDir({
       prefix: 'self-repair-',
@@ -162,7 +439,7 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     recordStep(steps, 'create-temp-dir', stepStart, true)
 
     // Step 2: Clone repo
-    logStep(2, TOTAL_STEPS, `Cloning ${payload.options.repo ?? 'repository'}...`)
+    logStep(2, totalSteps, `Cloning ${payload.options.repo ?? 'repository'}...`)
     stepStart = Date.now()
     if (!payload.options.repo) {
       throw new Error('self-repair: repo is required to clone the repository.')
@@ -171,13 +448,13 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     recordStep(steps, 'clone-repo', stepStart, true)
 
     // Step 3: Inject skills
-    logStep(3, TOTAL_STEPS, 'Injecting LLM skills...')
+    logStep(3, totalSteps, 'Injecting LLM skills...')
     stepStart = Date.now()
     const skillsDir = injectSkills(cloneTarget, payload.skillsSourcePath)
     recordStep(steps, 'inject-skills', stepStart, true)
 
     // Step 4: Bug report via LLM
-    logStep(4, TOTAL_STEPS, `Running bug analysis with ${payload.options.engine}...`)
+    logStep(4, totalSteps, `Running bug analysis with ${payload.options.engine}...`)
     stepStart = Date.now()
     const engine = createEngine(payload.options)
     const bugReportSkill = readSkillContent(skillsDir, 'bug-report')
@@ -203,115 +480,16 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     }
     recordStep(steps, 'bug-report', stepStart, true, bugReportResult.output)
 
-    // Step 5: Check for existing issue
-    logStep(5, TOTAL_STEPS, 'Checking for existing issues...')
-    stepStart = Date.now()
-    const issueTracker = createIssueTracker(payload.options)
-    const existingIssue = await issueTracker.findExistingIssue(errorHash)
-
-    if (existingIssue) {
-      logSuccess(`Found existing issue: ${existingIssue.url}`)
-      runLog.issueUrl = existingIssue.url
-      recordStep(steps, 'check-existing-issue', stepStart, true, `Existing: ${existingIssue.url}`)
-    }
-    else {
-      // Create new issue
-      const newIssue = await issueTracker.createIssue(bugReport, errorHash)
-      runLog.issueUrl = newIssue.url
-      recordStep(steps, 'create-issue', stepStart, true, `Created: ${newIssue.url}`)
-    }
-
-    // Step 6: Assess complexity and attempt repair if simple
-    logStep(6, TOTAL_STEPS, 'Assessing complexity...')
-    stepStart = Date.now()
-
-    if (bugReport.complexity === 'complex') {
-      logSuccess(
-        'Bug is assessed as complex -- skipping automated repair. '
-        + 'A detailed issue has been filed for manual review.',
+    // Branch into standard or PR repair mode
+    if (isPrMode) {
+      await executePrRepairPipeline(
+        payload, engine, cloneTarget, skillsDir, bugReport, steps, runLog,
       )
-      recordStep(steps, 'complexity-check', stepStart, true, 'complex -- skipping repair')
-      runLog.outcome = 'partial'
     }
     else {
-      recordStep(steps, 'complexity-check', stepStart, true, 'simple -- attempting repair')
-
-      // Attempt repair
-      logStep(7, TOTAL_STEPS, 'Attempting automated repair...')
-      stepStart = Date.now()
-      const repairSkill = readSkillContent(skillsDir, 'repair')
-      const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
-      const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
-      const repairResult = await engine.invoke({
-        workingDirectory: cloneTarget,
-        prompt: repairPrompt,
-        verbose: payload.options.verbose,
-      })
-
-      if (!repairResult.success) {
-        recordStep(steps, 'repair', stepStart, false, repairResult.output)
-        logError('Automated repair failed. The issue has been filed for manual review.')
-        runLog.outcome = 'partial'
-      }
-      else {
-        recordStep(steps, 'repair', stepStart, true, repairResult.output)
-
-        // Create PR
-        stepStart = Date.now()
-        const makePrSkill = readSkillContent(skillsDir, 'make-pr')
-        const prContext = [
-          `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``,
-          `## Issue Reference\n${runLog.issueUrl ?? 'No issue URL available'}`,
-          `## Changes Made\n${repairResult.output}`,
-        ].join('\n\n')
-        const makePrPrompt = buildPrompt(payload, makePrSkill, prContext)
-        const makePrResult = await engine.invoke({
-          workingDirectory: cloneTarget,
-          prompt: makePrPrompt,
-          verbose: payload.options.verbose,
-        })
-
-        if (!makePrResult.success) {
-          recordStep(steps, 'make-pr', stepStart, false, makePrResult.output)
-          logError('PR creation via engine failed.')
-          runLog.outcome = 'partial'
-        }
-        else {
-          const prInfo = parseJsonFromOutput<MakePrSkillOutput>(makePrResult.output)
-          if (prInfo && payload.options.githubToken && payload.options.repo) {
-            try {
-              // Ensure the PR title is prefixed, even if the skill forgot
-              const prTitle = prInfo.prTitle.toLowerCase().startsWith('self repair:')
-                ? prInfo.prTitle
-                : `Self repair: ${prInfo.prTitle}`
-
-              const pullRequest = await createGitHubPullRequest(
-                payload.options.githubToken,
-                payload.options.repo,
-                {
-                  title: prTitle,
-                  body: prInfo.prBody,
-                  head: prInfo.branch,
-                  base: 'main',
-                },
-              )
-              runLog.pullRequestUrl = pullRequest.url
-              recordStep(steps, 'make-pr', stepStart, true, pullRequest.url)
-              logSuccess(`Pull request created: ${pullRequest.url}`)
-              runLog.outcome = 'success'
-            }
-            catch (prError) {
-              recordStep(steps, 'make-pr', stepStart, false, String(prError))
-              logError(`GitHub PR creation failed: ${prError}`)
-              runLog.outcome = 'partial'
-            }
-          }
-          else {
-            recordStep(steps, 'make-pr', stepStart, false, 'Missing PR info or tokens')
-            runLog.outcome = 'partial'
-          }
-        }
-      }
+      await executeStandardPipeline(
+        payload, engine, cloneTarget, skillsDir, bugReport, errorHash, steps, runLog,
+      )
     }
 
     logSuccess('Repair pipeline complete.')
@@ -321,12 +499,10 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     runLog.outcome = 'failure'
   }
   finally {
-    // Write run log
     runLog.completedAt = new Date().toISOString()
     writeRunLog(runLog)
     pruneRunLogs(payload.options.maxLogCount)
 
-    // Clean up temp directory
     if (cleanupTmpDir) {
       try {
         await cleanupTmpDir()

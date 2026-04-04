@@ -8,6 +8,16 @@ import { ENGINE_MAX_TURNS } from '../constants'
 import { logInfo, logVerbose, logVerboseStream } from '../logger'
 
 /**
+ * Truncates a string for display in verbose logs.
+ */
+function truncate(text: string, maxLength = 200): string {
+  if (text.length <= maxLength) {
+    return text
+  }
+  return text.slice(0, maxLength) + '...'
+}
+
+/**
  * Creates an engine that invokes Claude Code via the official Agent SDK.
  * The SDK spawns a Claude Code process under the hood, giving the agent
  * full access to read, edit, and run commands in the working directory.
@@ -41,29 +51,31 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
       for await (const message of session) {
         // Capture assistant text output for the run log
         if (message.type === 'assistant' && typeof message.message === 'object') {
-          const textBlocks = message.message.content.filter(
-            (block: { type: string }) => block.type === 'text',
-          )
-          for (const block of textBlocks) {
-            if ('text' in block) {
+          for (const block of message.message.content) {
+            if (block.type === 'text' && 'text' in block) {
               const text = block.text as string
               outputChunks.push(text)
               if (options.verbose) {
                 logVerboseStream(text + '\n')
               }
             }
+
+            // Log tool invocations with their input in verbose mode
+            if (options.verbose && block.type === 'tool_use' && 'name' in block) {
+              const inputStr = 'input' in block
+                ? truncate(JSON.stringify(block.input))
+                : ''
+              logVerboseStream(`[tool: ${block.name}] ${inputStr}\n`)
+            }
           }
         }
 
-        // Log tool use in verbose mode
-        if (options.verbose && message.type === 'assistant' && typeof message.message === 'object') {
-          const toolBlocks = message.message.content.filter(
-            (block: { type: string }) => block.type === 'tool_use',
-          )
-          for (const block of toolBlocks) {
-            if ('name' in block) {
-              logVerboseStream(`[tool: ${block.name}]\n`)
-            }
+        // Log tool result summaries in verbose mode.
+        // These are the "what did the tool actually do" messages from the SDK.
+        if (options.verbose && message.type === 'tool_use_summary') {
+          const summary = (message as { summary?: string }).summary
+          if (summary) {
+            logVerboseStream(`[tool result] ${truncate(summary, 500)}\n`)
           }
         }
 
