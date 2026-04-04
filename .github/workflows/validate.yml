@@ -28,25 +28,31 @@ jobs:
         run: corepack enable
 
       - name: Install dependencies
+        id: install
+        continue-on-error: true
         run: yarn install --immutable
 
       - name: Lint
         id: lint
+        if: steps.install.outcome == 'success'
         continue-on-error: true
         run: yarn lint
 
       - name: Typecheck
         id: typecheck
+        if: steps.install.outcome == 'success'
         continue-on-error: true
         run: yarn typecheck
 
       - name: Unit Tests
         id: tests
+        if: steps.install.outcome == 'success'
         continue-on-error: true
         run: yarn test
 
       - name: Build
         id: build
+        if: steps.install.outcome == 'success'
         continue-on-error: true
         run: yarn build
 
@@ -65,6 +71,8 @@ jobs:
           paths: test-results/junit.xml
 
       - name: Summary
+        id: summary
+        if: always()
         run: |
           echo ""
           echo "=============================="
@@ -73,40 +81,84 @@ jobs:
           echo ""
 
           FAILED=0
+          FAILURES=""
+
+          if [ "${{ steps.install.outcome }}" != "success" ]; then
+            echo -e "\033[31m✗ Install failed\033[0m"
+            FAILURES="${FAILURES}Install failed. "
+            FAILED=1
+          fi
 
           if [ "${{ steps.lint.outcome }}" = "success" ]; then
             echo -e "\033[32m✓ Lint passed\033[0m"
-          else
+          elif [ "${{ steps.lint.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Lint failed\033[0m"
+            FAILURES="${FAILURES}Lint failed. "
             FAILED=1
           fi
 
           if [ "${{ steps.typecheck.outcome }}" = "success" ]; then
             echo -e "\033[32m✓ Typecheck passed\033[0m"
-          else
+          elif [ "${{ steps.typecheck.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Typecheck failed\033[0m"
+            FAILURES="${FAILURES}Typecheck failed. "
             FAILED=1
           fi
 
           if [ "${{ steps.tests.outcome }}" = "success" ]; then
             echo -e "\033[32m✓ Unit tests passed\033[0m"
-          else
+          elif [ "${{ steps.tests.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Unit tests failed\033[0m"
+            FAILURES="${FAILURES}Unit tests failed. "
             FAILED=1
           fi
 
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             echo -e "\033[32m✓ Build passed\033[0m"
-          else
+          elif [ "${{ steps.build.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Build failed\033[0m"
+            FAILURES="${FAILURES}Build failed. "
             FAILED=1
           fi
 
           echo ""
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "failures=$FAILURES" >> "$GITHUB_OUTPUT"
 
           if [ "$FAILED" = "1" ]; then
             echo -e "\033[31mOne or more validation steps failed.\033[0m"
-            exit 1
           else
             echo -e "\033[32mAll validation steps passed.\033[0m"
           fi
+
+      # ─── Self-Repair on failure ──────────────────────────────────────
+      # If any validation step failed, invoke self-repair against our own
+      # repo to diagnose the issue, file a bug report, and attempt a fix.
+      # Skipped on self-repair branches to prevent infinite loops.
+
+      - name: Self-repair
+        if: >-
+          always()
+          && steps.summary.outputs.failed == '1'
+          && steps.build.outcome == 'success'
+          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          SHA="${{ github.sha }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          FAILURES="${{ steps.summary.outputs.failures }}"
+
+          ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}See: ${RUN_URL}"
+
+          echo ""
+          echo -e "\033[35m[self-repair] Initiating self-repair for CI failure...\033[0m"
+          echo -e "\033[35m[self-repair] Error: ${ERROR_MESSAGE}\033[0m"
+          echo ""
+
+          node dist/cli.js \
+            --error "${ERROR_MESSAGE}" \
+            --engine claude \
+            --repo "${{ github.repository }}"
