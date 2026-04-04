@@ -12,10 +12,21 @@
 
 When your app crashes, `self-repair` spawns a fully detached background process that clones your repo, analyzes the failure with Claude or Codex, files a detailed bug report on GitHub or Jira, and -- if the fix is straightforward -- opens a pull request. Your app keeps running (or restarts) without ever blocking on the repair.
 
-```
-npm crash  -->  clone repo  -->  LLM diagnosis  -->  issue filed  -->  PR opened
-   |                                                                       |
-   '--- app restarts immediately                          fix ready for review
+```mermaid
+flowchart LR
+    A["App crashes"] --> B["Detached child\nprocess spawns"]
+    A -. "app restarts\nimmediately" .-> R["App running"]
+    B --> C["Clone repo"]
+    C --> D["LLM diagnosis"]
+    D --> E["Issue filed"]
+    E --> F{"Simple\nfix?"}
+    F -- Yes --> G["PR opened"]
+    F -- No --> H["Manual review"]
+
+    style A fill:#e74c3c,color:#fff,stroke:none
+    style G fill:#27ae60,color:#fff,stroke:none
+    style H fill:#f39c12,color:#fff,stroke:none
+    style R fill:#3498db,color:#fff,stroke:none
 ```
 
 ---
@@ -160,25 +171,42 @@ All options are optional except `repo` (required for cloning and issue/PR creati
 
 ## How It Works
 
-```
-1. Error detected (crash handler or manual trigger)
-2. Deduplication check (skip if same error hash seen in last 10 min)
-3. Concurrency check (skip if at max parallel repairs)
-4. Spawn detached child process (parent can exit/restart immediately)
-   │
-   └─ Child process:
-      5. Create temp directory
-      6. git clone --depth=1 (authenticated, shallow)
-      7. Inject LLM skills into .claude/skills/
-      8. Invoke engine with /bug-report skill → structured JSON
-      9. Search issue tracker for existing issue (by error hash)
-     10. Create issue if none exists
-     11. If complexity is "simple":
-         a. Invoke engine with /repair skill → code changes
-         b. Invoke engine with /make-pr skill → branch + commit + push
-         c. Create PR via GitHub API
-     12. Write run log to ~/.self-repair/logs/
-     13. Clean up temp directory
+```mermaid
+flowchart TD
+    A["Error detected"] --> B{"Duplicate?\n(10-min window)"}
+    B -- Yes --> Z1["Skip"]
+    B -- No --> C{"At max\nconcurrency?"}
+    C -- Yes --> Z2["Drop"]
+    C -- No --> D["Spawn detached\nchild process"]
+    A -. "parent continues\nor restarts" .-> P["App running"]
+
+    subgraph child ["Child process (fully detached)"]
+        direction TB
+        D --> E["Create temp dir"]
+        E --> F["git clone --depth=1"]
+        F --> G["Inject LLM skills"]
+        G --> H["Engine: /bug-report\n→ structured JSON"]
+        H --> I{"Existing\nissue?"}
+        I -- No --> J["Create issue"]
+        I -- Yes --> K["Link to existing"]
+        J --> L{"Complexity?"}
+        K --> L
+        L -- simple --> M["Engine: /repair\n→ code changes"]
+        M --> N["Engine: /make-pr\n→ branch + push"]
+        N --> O["Create PR via\nGitHub API"]
+        L -- complex --> Q["Skip repair\n(issue only)"]
+        O --> W["Write run log"]
+        Q --> W
+        W --> X["Clean up temp dir"]
+    end
+
+    style A fill:#e74c3c,color:#fff,stroke:none
+    style P fill:#3498db,color:#fff,stroke:none
+    style Z1 fill:#95a5a6,color:#fff,stroke:none
+    style Z2 fill:#95a5a6,color:#fff,stroke:none
+    style O fill:#27ae60,color:#fff,stroke:none
+    style Q fill:#f39c12,color:#fff,stroke:none
+    style child fill:#f8f9fa,stroke:#dee2e6,color:#333
 ```
 
 ### Skills
