@@ -23,7 +23,7 @@ const bugReport: BugReport = {
   description: 'App crashes on login',
   severity: 'high',
   complexity: 'simple',
-  affectedFiles: ['src/auth.ts'],
+  affectedFiles: [ 'src/auth.ts' ],
   reproductionSteps: '1. Open app\n2. Log in',
 }
 
@@ -99,7 +99,7 @@ describe('createJiraTracker', () => {
   describe('findExistingIssue', () => {
     it('returns null when no matching issue is found', async () => {
       mockFetch.mockResolvedValue(
-        makeResponse(true, { total: 0, issues: [] }),
+        makeResponse(true, { total: 0, issues: []}),
       )
       const result = await createJiraTracker(CONFIG).findExistingIssue('abc123')
       expect(result).toBeNull()
@@ -107,7 +107,7 @@ describe('createJiraTracker', () => {
 
     it('returns an IssueReference when a matching issue exists', async () => {
       mockFetch.mockResolvedValue(
-        makeResponse(true, { total: 1, issues: [{ key: 'ENG-42' }] }),
+        makeResponse(true, { total: 1, issues: [{ key: 'ENG-42' }]}),
       )
       const result = await createJiraTracker(CONFIG).findExistingIssue('abc123')
       expect(result).toEqual({
@@ -124,9 +124,9 @@ describe('createJiraTracker', () => {
     })
 
     it('includes the error hash in the JQL search query', async () => {
-      mockFetch.mockResolvedValue(makeResponse(true, { total: 0, issues: [] }))
+      mockFetch.mockResolvedValue(makeResponse(true, { total: 0, issues: []}))
       await createJiraTracker(CONFIG).findExistingIssue('deadbeef')
-      const [url] = mockFetch.mock.calls[0] as [string]
+      const [ url ] = mockFetch.mock.calls[0] as [string]
       expect(url).toContain('deadbeef')
     })
   })
@@ -145,7 +145,7 @@ describe('createJiraTracker', () => {
     it('sends the bug report title as the issue summary', async () => {
       mockFetch.mockResolvedValue(makeResponse(true, { key: 'ENG-1' }, 201))
       await createJiraTracker(CONFIG).createIssue(bugReport, 'hash123')
-      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+      const [ , options ] = mockFetch.mock.calls[0] as [string, RequestInit]
       const body = JSON.parse(options.body as string)
       expect(body.fields.summary).toBe(bugReport.title)
     })
@@ -153,13 +153,13 @@ describe('createJiraTracker', () => {
     it('embeds the error hash in the issue description', async () => {
       mockFetch.mockResolvedValue(makeResponse(true, { key: 'ENG-1' }, 201))
       await createJiraTracker(CONFIG).createIssue(bugReport, 'hash123')
-      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+      const [ , options ] = mockFetch.mock.calls[0] as [string, RequestInit]
       const body = JSON.parse(options.body as string)
       expect(body.fields.description).toContain('hash123')
     })
 
     it('throws when the Jira API returns an error response', async () => {
-      mockFetch.mockResolvedValue(makeResponse(false, { errorMessages: ['Bad request'] }, 400))
+      mockFetch.mockResolvedValue(makeResponse(false, { errorMessages: [ 'Bad request' ]}, 400))
       await expect(createJiraTracker(CONFIG).createIssue(bugReport, 'hash123')).rejects.toThrow(
         'HTTP 400',
       )

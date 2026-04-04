@@ -56,9 +56,9 @@ describe('createCodexEngine', () => {
   it('uses thread.runStreamed() in verbose mode and accumulates text', async () => {
     mockRunStreamed.mockReturnValue({
       events: makeEvents([
-        { type: 'item.completed', item: { type: 'text', text: 'Step 1' } },
-        { type: 'item.completed', item: { type: 'text', text: ' Step 2' } },
-        { type: 'turn.completed', usage: { tokens: 100 } },
+        { type: 'item.completed', item: { type: 'text', text: 'Step 1' }},
+        { type: 'item.completed', item: { type: 'text', text: ' Step 2' }},
+        { type: 'turn.completed', usage: { tokens: 100 }},
       ]),
     })
 

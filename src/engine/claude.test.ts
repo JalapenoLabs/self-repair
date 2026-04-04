@@ -1,5 +1,7 @@
 // Copyright © 2026 self-repair contributors
 
+import type { Query } from '@anthropic-ai/claude-agent-sdk'
+
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { describe, expect, it, vi } from 'vitest'
@@ -33,10 +35,10 @@ describe('createClaudeEngine', () => {
       makeSession([
         {
           type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Analysis complete.' }] },
+          message: { content: [{ type: 'text', text: 'Analysis complete.' }]},
         },
         { type: 'result', subtype: 'success', result: '{"title":"Bug"}' },
-      ]),
+      ]) as unknown as Query,
     )
 
     const engine = createClaudeEngine('test-token')
@@ -51,10 +53,10 @@ describe('createClaudeEngine', () => {
   it('accumulates text from multiple assistant messages', async () => {
     vi.mocked(query).mockReturnValue(
       makeSession([
-        { type: 'assistant', message: { content: [{ type: 'text', text: 'Part 1 ' }] } },
-        { type: 'assistant', message: { content: [{ type: 'text', text: 'Part 2' }] } },
+        { type: 'assistant', message: { content: [{ type: 'text', text: 'Part 1 ' }]}},
+        { type: 'assistant', message: { content: [{ type: 'text', text: 'Part 2' }]}},
         { type: 'result', subtype: 'success', result: '' },
-      ]),
+      ]) as unknown as Query,
     )
 
     const engine = createClaudeEngine()
@@ -71,13 +73,13 @@ describe('createClaudeEngine', () => {
           type: 'assistant',
           message: {
             content: [
-              { type: 'tool_use', name: 'read_file', input: {} },
+              { type: 'tool_use', name: 'read_file', input: {}},
               { type: 'text', text: 'Only this' },
             ],
           },
         },
         { type: 'result', subtype: 'success', result: '' },
-      ]),
+      ]) as unknown as Query,
     )
 
     const engine = createClaudeEngine()
@@ -103,9 +105,9 @@ describe('createClaudeEngine', () => {
   it('includes partial output collected before the error', async () => {
     vi.mocked(query).mockReturnValue(
       (async function* () {
-        yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Started...' }] } }
+        yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Started...' }]}}
         throw new Error('Connection dropped')
-      })(),
+      })() as unknown as Query,
     )
 
     const engine = createClaudeEngine()

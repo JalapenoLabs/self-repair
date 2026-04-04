@@ -31,7 +31,7 @@ const bugReport: BugReport = {
   description: 'Crash when user logs in',
   severity: 'high',
   complexity: 'simple',
-  affectedFiles: ['src/app.ts'],
+  affectedFiles: [ 'src/app.ts' ],
   reproductionSteps: '1. Log in\n2. Observe crash',
   suggestedFix: 'Add null check on line 42',
 }
@@ -56,12 +56,12 @@ describe('createGitHubTracker', () => {
     mockReposGet.mockResolvedValue({
       data: { permissions: { push: true }, has_issues: true },
     })
-    mockIssuesGetLabel.mockResolvedValue({ data: { name: 'self-repair' } })
+    mockIssuesGetLabel.mockResolvedValue({ data: { name: 'self-repair' }})
     mockIssuesCreateLabel.mockResolvedValue({})
     mockIssuesCreate.mockResolvedValue({
       data: { number: 42, html_url: 'https://github.com/owner/repo/issues/42' },
     })
-    mockSearchIssues.mockResolvedValue({ data: { total_count: 0, items: [] } })
+    mockSearchIssues.mockResolvedValue({ data: { total_count: 0, items: []}})
   })
 
   it('throws immediately on invalid repo format', () => {
@@ -131,13 +131,13 @@ describe('createGitHubTracker', () => {
 
     it('embeds the error hash marker in the issue body', async () => {
       await createGitHubTracker(TOKEN, REPO).createIssue(bugReport, 'hash123')
-      const { body } = mockIssuesCreate.mock.calls[0][0] as { body: string }
+      const { body } = mockIssuesCreate.mock.calls[0]![0] as { body: string }
       expect(body).toContain('hash123')
     })
 
     it('includes affected files in the issue body', async () => {
       await createGitHubTracker(TOKEN, REPO).createIssue(bugReport, 'hash123')
-      const { body } = mockIssuesCreate.mock.calls[0][0] as { body: string }
+      const { body } = mockIssuesCreate.mock.calls[0]![0] as { body: string }
       expect(body).toContain('src/app.ts')
     })
 

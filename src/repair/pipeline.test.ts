@@ -60,7 +60,7 @@ const bugReport: BugReport = {
   description: 'App crashes on login',
   severity: 'high',
   complexity: 'simple',
-  affectedFiles: ['src/auth.ts'],
+  affectedFiles: [ 'src/auth.ts' ],
   reproductionSteps: '1. Log in',
 }
 

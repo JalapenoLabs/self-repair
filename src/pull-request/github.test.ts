@@ -19,7 +19,7 @@ vi.mock('@octokit/rest', () => ({
 describe('createGitHubPullRequest', () => {
   beforeEach(() => {
     vi.mocked(Octokit).mockImplementation(
-      () => ({ rest: { pulls: { create: mockPullsCreate } } }) as any,
+      () => ({ rest: { pulls: { create: mockPullsCreate }}}) as any,
     )
     mockPullsCreate.mockResolvedValue({
       data: { number: 5, html_url: 'https://github.com/owner/repo/pull/5' },

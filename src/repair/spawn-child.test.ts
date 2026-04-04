@@ -49,14 +49,14 @@ describe('spawnChildProcess', () => {
   it('spawns using process.execPath as the command', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     spawnChildProcess(buildOptions(), trigger)
-    const [cmd] = vi.mocked(spawn).mock.calls[0]
+    const [ cmd ] = vi.mocked(spawn).mock.calls[0]!
     expect(cmd).toBe(process.execPath)
   })
 
   it('spawns in detached mode with stdio ignored', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     spawnChildProcess(buildOptions(), trigger)
-    const [, , opts] = vi.mocked(spawn).mock.calls[0]
+    const [ , , opts ] = vi.mocked(spawn).mock.calls[0]!
     expect(opts).toMatchObject({ detached: true, stdio: 'ignore' })
   })
 
@@ -76,7 +76,7 @@ describe('spawnChildProcess', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     const options = buildOptions({ repo: 'test/repo' })
     spawnChildProcess(options, trigger)
-    const [, , opts] = vi.mocked(spawn).mock.calls[0]
+    const [ , , opts ] = vi.mocked(spawn).mock.calls[0]!
     const rawPayload = (opts as any).env[CHILD_PAYLOAD_ENV_KEY]
     expect(rawPayload).toBeDefined()
     const payload = JSON.parse(rawPayload)
@@ -88,7 +88,7 @@ describe('spawnChildProcess', () => {
   it('includes process.env in the child environment', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     spawnChildProcess(buildOptions(), trigger)
-    const [, , opts] = vi.mocked(spawn).mock.calls[0]
+    const [ , , opts ] = vi.mocked(spawn).mock.calls[0]!
     // Should inherit existing env vars
     expect((opts as any).env).toMatchObject(process.env)
   })

@@ -128,7 +128,7 @@ describe('startSelfRepair', () => {
 
   it('auto-populates timestamp on the trigger when not provided', () => {
     startSelfRepair({ error: 'no ts' }, buildOptions())
-    const [, trigger] = mockSpawnChildProcess.mock.calls[0]
+    const [ , trigger ] = mockSpawnChildProcess.mock.calls[0]!
     expect(typeof trigger.timestamp).toBe('number')
     expect(trigger.timestamp).toBeGreaterThan(0)
   })
