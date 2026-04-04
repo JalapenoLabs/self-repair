@@ -229,6 +229,8 @@ jobs:
           && steps.summary.outputs.failed == '1'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
 
+        timeout-minutes: 15
+
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
