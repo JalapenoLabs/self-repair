@@ -106,9 +106,9 @@ The README contains Mermaid diagrams for the pipeline flow. If you change the pi
 
 ## CI
 
-Two GitHub Actions workflows in `.github/workflows/`:
+GitHub Actions workflows in `.github/workflows/`:
 
-- **`validate.yml`**: Lint, typecheck, tests, build. All steps run independently with `continue-on-error`, then a summary step aggregates pass/fail.
-- **`smoke.yml`**: Builds, then runs smoke tests (CLI `--help`, library import check, skill file existence).
+- **`validate.yml`**: Lint, typecheck, tests, build, and smoke tests. All steps run independently with `continue-on-error`, then a summary step aggregates pass/fail. If any step fails, self-repair is invoked against this repo to diagnose and fix the issue.
+- **`publish.yml`**: Manual dispatch workflow for publishing to npm.
 
-If you add new build artifacts or public exports, update `smoke.yml` to verify them.
+If you add new build artifacts or public exports, update the smoke test step in `validate.yml` to verify them.

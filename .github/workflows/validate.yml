@@ -56,6 +56,64 @@ jobs:
         continue-on-error: true
         run: yarn build
 
+      # ─── Smoke Tests ────────────────────────────────────────────────
+      # Quick sanity checks that the built package actually works.
+      # Only run when build succeeded (need dist/ artifacts).
+
+      - name: Smoke tests
+        id: smoke
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          echo "── Checking build artifacts..."
+          test -f dist/index.js   || { echo "FAIL: dist/index.js missing"; exit 1; }
+          test -f dist/cli.js     || { echo "FAIL: dist/cli.js missing"; exit 1; }
+          test -f dist/index.d.ts || { echo "FAIL: dist/index.d.ts missing"; exit 1; }
+          echo "✓ All build artifacts present."
+
+          echo ""
+          echo "── CLI --help smoke test..."
+          node dist/cli.js --help
+          echo "✓ CLI runs."
+
+          echo ""
+          echo "── Library import smoke test..."
+          node --input-type=module <<'SMOKE'
+          import { setSelfRepairOptions, registerCrashHandler, startSelfRepair } from './dist/index.js'
+
+          const exports = { setSelfRepairOptions, registerCrashHandler, startSelfRepair }
+          for (const [name, fn] of Object.entries(exports)) {
+            if (typeof fn !== 'function') {
+              console.error(`FAIL: ${name} is ${typeof fn}, expected function`)
+              process.exit(1)
+            }
+            console.log(`✓ ${name} is a function`)
+          }
+
+          const resolved = setSelfRepairOptions({ engine: 'claude', repo: 'test/repo' })
+          if (resolved.engine !== 'claude' || resolved.repo !== 'test/repo') {
+            console.error('FAIL: resolved options mismatch')
+            process.exit(1)
+          }
+          console.log('✓ setSelfRepairOptions returns correct resolved options')
+
+          if (resolved.runInProduction !== false || resolved.maxParallelRepairs !== 3) {
+            console.error('FAIL: default values incorrect')
+            process.exit(1)
+          }
+          console.log('✓ Default options applied correctly')
+          SMOKE
+
+          echo ""
+          echo "── Checking skill files..."
+          test -f .claude/skills/bug-report/SKILL.md || { echo "FAIL: bug-report skill missing"; exit 1; }
+          test -f .claude/skills/repair/SKILL.md     || { echo "FAIL: repair skill missing"; exit 1; }
+          test -f .claude/skills/make-pr/SKILL.md    || { echo "FAIL: make-pr skill missing"; exit 1; }
+          echo "✓ All skill files present."
+
+          echo ""
+          echo "All smoke tests passed."
+
       - name: Test dashboard
         if: steps.tests.outcome == 'success' || steps.tests.outcome == 'failure'
         uses: test-summary/action@v2
@@ -110,6 +168,14 @@ jobs:
           elif [ "${{ steps.build.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Build failed\033[0m"
             FAILURES="${FAILURES}Build failed. "
+            FAILED=1
+          fi
+
+          if [ "${{ steps.smoke.outcome }}" = "success" ]; then
+            echo -e "\033[32m✓ Smoke tests passed\033[0m"
+          elif [ "${{ steps.smoke.outcome }}" = "failure" ]; then
+            echo -e "\033[31m✗ Smoke tests failed\033[0m"
+            FAILURES="${FAILURES}Smoke tests failed. "
             FAILED=1
           fi
 
