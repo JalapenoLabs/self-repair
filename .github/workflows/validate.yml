@@ -117,10 +117,11 @@ jobs:
       # ─── End-to-End Test ──────────────────────────────────────────
       # Runs the full repair pipeline with a real Claude invocation.
       # Requires ANTHROPIC_API_KEY; skips gracefully when absent.
+      # Only run on the main or develop branch
 
       - name: End-to-end test
         id: e2e
-        if: steps.install.outcome == 'success'
+        if: ${{ steps.install.outcome == 'success' && (github.head_ref == 'main' || github.head_ref == 'develop') }}
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -221,11 +222,21 @@ jobs:
       #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
       #     triggers CI, fails, and invokes self-repair again endlessly.
 
-      - name: Self-repair install
+      - name: Self-repair
         if: >-
           always()
+          && (github.base_ref == 'main' || github.base_ref == 'develop')
           && steps.summary.outputs.failed == '1'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
+          BRANCH: "${{ github.head_ref || github.ref_name }}"
+          SHA: "${{ github.sha }}"
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          FAILURES: "${{ steps.summary.outputs.failures }}"
+
         run: |
           # If the immutable install failed (e.g. lockfile mismatch), do a
           # permissive install so we have node_modules to run tsx from source.
@@ -236,24 +247,6 @@ jobs:
             echo "Using existing node_modules from primary install."
           fi
 
-      - name: Self-repair
-        # Only run on the main branch
-        # Summary.outputs.failed is a stringified 0/1 boolean
-        # Don't self-repair branches that start with self-repair
-        if: >-
-          always()
-          && (github.base_ref == 'main' || github.base_ref == 'develop')
-          && steps.summary.outputs.failed == '1'
-          && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
-          BRANCH: "${{ github.head_ref || github.ref_name }}"
-          SHA: "${{ github.sha }}"
-          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          FAILURES: "${{ steps.summary.outputs.failures }}"
-
-        run: |
           ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}See: ${RUN_URL}"
 
           echo ""
