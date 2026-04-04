@@ -7,10 +7,10 @@ import { tmpdir } from 'node:os'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { pruneRunLogs } from './pruner.js'
+import { pruneRunLogs } from './pruner'
 
 // Suppress chalk logging during tests
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('../logger.js', () => ({
 let testLogsDir: string
 
 // Mock getLogsDirectory to use a temp dir
-vi.mock('./writer.js', () => ({
+vi.mock('./writer', () => ({
   getLogsDirectory: () => testLogsDir,
 }))
 

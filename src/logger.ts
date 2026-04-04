@@ -2,7 +2,7 @@
 
 import chalk from 'chalk'
 
-import { LOG_PREFIX } from './constants.js'
+import { LOG_PREFIX } from './constants'
 
 const prefix = chalk.bold.magenta(LOG_PREFIX)
 const verbosePrefix = chalk.bold.magenta(LOG_PREFIX) + chalk.dim(' [verbose]')

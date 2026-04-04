@@ -4,10 +4,10 @@ import { EventEmitter } from 'node:events'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConcurrencyTracker } from './concurrency.js'
+import { createConcurrencyTracker } from './concurrency'
 
 // Suppress chalk logging during tests
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),

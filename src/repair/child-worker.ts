@@ -4,11 +4,11 @@
 // This script runs in a detached child process. It parses the repair
 // payload from the environment and executes the full repair pipeline.
 
-import type { ChildWorkerPayload } from '../types.js'
+import type { ChildWorkerPayload } from '../types'
 
-import { CHILD_PAYLOAD_ENV_KEY } from '../constants.js'
-import { logError, logInfo } from '../logger.js'
-import { executeRepairPipeline } from './pipeline.js'
+import { CHILD_PAYLOAD_ENV_KEY } from '../constants'
+import { logError, logInfo } from '../logger'
+import { executeRepairPipeline } from './pipeline'
 
 async function main(): Promise<void> {
   const rawPayload = process.env[CHILD_PAYLOAD_ENV_KEY]

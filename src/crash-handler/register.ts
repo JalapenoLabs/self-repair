@@ -1,9 +1,9 @@
 // Copyright © 2026 self-repair contributors
 
-import { getResolvedOptions, isProductionGuarded } from '../config/options.js'
-import { validateAllPermissions } from '../issue-tracker/permissions.js'
-import { logError, logInfo, logWarning } from '../logger.js'
-import { startSelfRepair } from '../repair/start.js'
+import { getResolvedOptions, isProductionGuarded } from '../config/options'
+import { validateAllPermissions } from '../issue-tracker/permissions'
+import { logError, logInfo, logWarning } from '../logger'
+import { startSelfRepair } from '../repair/start'
 
 let registered = false
 

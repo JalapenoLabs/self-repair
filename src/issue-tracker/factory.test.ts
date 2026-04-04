@@ -1,13 +1,13 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ResolvedOptions } from '../types.js'
+import type { ResolvedOptions } from '../types'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createIssueTracker } from './factory.js'
+import { createIssueTracker } from './factory'
 
 // Suppress chalk logging during tests
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),

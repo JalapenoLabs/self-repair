@@ -4,9 +4,9 @@ import { Octokit } from '@octokit/rest'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createGitHubPullRequest } from './github.js'
+import { createGitHubPullRequest } from './github'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
 }))
 

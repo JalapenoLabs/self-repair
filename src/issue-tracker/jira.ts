@@ -1,9 +1,9 @@
 // Copyright © 2026 self-repair contributors
 
-import type { BugReport, IssueReference, IssueTrackerContract } from './types.js'
+import type { BugReport, IssueReference, IssueTrackerContract } from './types'
 
-import { ISSUE_HASH_PREFIX } from '../constants.js'
-import { logError, logInfo } from '../logger.js'
+import { ISSUE_HASH_PREFIX } from '../constants'
+import { logError, logInfo } from '../logger'
 
 type JiraConfig = {
   host: string

@@ -3,8 +3,8 @@
 import { readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { logInfo } from '../logger.js'
-import { getLogsDirectory } from './writer.js'
+import { logInfo } from '../logger'
+import { getLogsDirectory } from './writer'
 
 type LogFileEntry = {
   path: string

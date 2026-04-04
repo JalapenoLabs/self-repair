@@ -1,9 +1,9 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ResolvedOptions } from '../types.js'
+import type { ResolvedOptions } from '../types'
 
-import { logError } from '../logger.js'
-import { createIssueTracker } from './factory.js'
+import { logError } from '../logger'
+import { createIssueTracker } from './factory'
 
 /**
  * Validates that the configured issue tracker has sufficient permissions.

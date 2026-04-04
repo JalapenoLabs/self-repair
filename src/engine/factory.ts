@@ -1,11 +1,11 @@
 // Copyright © 2026 self-repair contributors
 
-import type { EngineContract, SelfRepairEngine } from './types.js'
+import type { EngineContract, SelfRepairEngine } from './types'
 
-import type { ResolvedOptions } from '../types.js'
+import type { ResolvedOptions } from '../types'
 
-import { createClaudeEngine } from './claude.js'
-import { createCodexEngine } from './codex.js'
+import { createClaudeEngine } from './claude'
+import { createCodexEngine } from './codex'
 
 type EngineFactory = (options: ResolvedOptions) => EngineContract
 

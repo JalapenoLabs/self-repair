@@ -7,10 +7,10 @@ import {
   isProductionGuarded,
   resetOptions,
   setSelfRepairOptions,
-} from './options.js'
+} from './options'
 
 // Suppress chalk logging during tests
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('../logger.js', () => ({
 }))
 
 // Mock token resolution to avoid filesystem reads
-vi.mock('./resolve-tokens.js', () => ({
+vi.mock('./resolve-tokens', () => ({
   resolveTokens: vi.fn((options: any) => ({
     claudeToken: options.CLAUDE_API_TOKEN ?? 'mock-claude-token',
     openaiToken: options.OPENAI_API_TOKEN ?? undefined,

@@ -1,10 +1,10 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ResolvedOptions } from '../types.js'
+import type { ResolvedOptions } from '../types'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startSelfRepair } from './start.js'
+import { startSelfRepair } from './start'
 
 // vi.hoisted ensures these variables are initialized before vi.mock factories run
 const {
@@ -27,29 +27,29 @@ const {
   mockSpawnChildProcess: vi.fn(),
 }))
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),
 }))
 
-vi.mock('../config/options.js', () => ({
+vi.mock('../config/options', () => ({
   getResolvedOptions: mockGetResolvedOptions,
   isProductionGuarded: mockIsProductionGuarded,
 }))
 
-vi.mock('./deduplication.js', () => ({
+vi.mock('./deduplication', () => ({
   isRecentDuplicate: mockIsRecentDuplicate,
   recordError: mockRecordError,
   computeErrorHash: vi.fn().mockReturnValue('abc123'),
   resetDeduplication: vi.fn(),
 }))
 
-vi.mock('./concurrency.js', () => ({
+vi.mock('./concurrency', () => ({
   createConcurrencyTracker: mockCreateConcurrencyTracker,
 }))
 
-vi.mock('./spawn-child.js', () => ({
+vi.mock('./spawn-child', () => ({
   spawnChildProcess: mockSpawnChildProcess,
 }))
 

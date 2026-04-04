@@ -1,10 +1,10 @@
 // Copyright © 2026 self-repair contributors
 
-import type { PullRequestOptions, PullRequestResult } from '../types.js'
+import type { PullRequestOptions, PullRequestResult } from '../types'
 
 import { Octokit } from '@octokit/rest'
 
-import { logInfo } from '../logger.js'
+import { logInfo } from '../logger'
 
 /**
  * Creates a pull request on GitHub. PR creation always goes through GitHub,

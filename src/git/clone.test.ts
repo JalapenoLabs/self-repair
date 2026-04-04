@@ -4,9 +4,9 @@ import { execFile } from 'node:child_process'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { cloneRepository } from './clone.js'
+import { cloneRepository } from './clone'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
 }))
 

@@ -14,9 +14,9 @@ export type {
   RunLog,
   SelfRepairEngine,
   SelfRepairOptions,
-} from './types.js'
+} from './types'
 
 // Core
-export { setSelfRepairOptions } from './config/index.js'
-export { registerCrashHandler } from './crash-handler/index.js'
-export { startSelfRepair } from './repair/index.js'
+export { setSelfRepairOptions } from './config/index'
+export { registerCrashHandler } from './crash-handler/index'
+export { startSelfRepair } from './repair/index'

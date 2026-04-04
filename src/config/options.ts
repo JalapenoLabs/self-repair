@@ -1,6 +1,6 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ResolvedOptions, SelfRepairOptions } from '../types.js'
+import type { ResolvedOptions, SelfRepairOptions } from '../types'
 
 import {
   DEFAULT_ENGINE,
@@ -8,9 +8,9 @@ import {
   DEFAULT_MAX_LOG_COUNT,
   DEFAULT_MAX_PARALLEL_REPAIRS,
   DEFAULT_RUN_IN_PRODUCTION,
-} from '../constants.js'
-import { logWarning } from '../logger.js'
-import { resolveTokens } from './resolve-tokens.js'
+} from '../constants'
+import { logWarning } from '../logger'
+import { resolveTokens } from './resolve-tokens'
 
 // ─── Module-Level State ─────────────────────────────────────────────────────
 

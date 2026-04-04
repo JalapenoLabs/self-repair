@@ -3,10 +3,10 @@
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
-import type { RepairTrigger } from '../types.js'
+import type { RepairTrigger } from '../types'
 
-import { DEDUP_WINDOW_MS } from '../constants.js'
-import { logWarning } from '../logger.js'
+import { DEDUP_WINDOW_MS } from '../constants'
+import { logWarning } from '../logger'
 
 // ─── In-Memory Dedup State ──────────────────────────────────────────────────
 

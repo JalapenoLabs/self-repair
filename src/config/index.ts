@@ -5,5 +5,5 @@ export {
   isProductionGuarded,
   resetOptions,
   setSelfRepairOptions,
-} from './options.js'
-export { resolveTokens } from './resolve-tokens.js'
+} from './options'
+export { resolveTokens } from './resolve-tokens'

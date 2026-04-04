@@ -4,7 +4,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { logInfo } from '../logger.js'
+import { logInfo } from '../logger'
 
 /**
  * Resolves the absolute path to the skills directory shipped with this package.

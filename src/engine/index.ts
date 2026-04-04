@@ -1,5 +1,5 @@
 // Copyright © 2026 self-repair contributors
 
-export { createClaudeEngine } from './claude.js'
-export { createCodexEngine } from './codex.js'
-export { createEngine } from './factory.js'
+export { createClaudeEngine } from './claude'
+export { createCodexEngine } from './codex'
+export { createEngine } from './factory'

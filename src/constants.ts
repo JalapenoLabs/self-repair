@@ -1,6 +1,6 @@
 // Copyright © 2026 self-repair contributors
 
-import type { IssueTrackerKind, SelfRepairEngine } from './types.js'
+import type { IssueTrackerKind, SelfRepairEngine } from './types'
 
 // ─── Default Option Values ──────────────────────────────────────────────────
 

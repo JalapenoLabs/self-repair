@@ -1,10 +1,10 @@
 // Copyright © 2026 self-repair contributors
 
-import type { EngineContract, EngineInvokeOptions, EngineResult } from './types.js'
+import type { EngineContract, EngineInvokeOptions, EngineResult } from './types'
 
 import { Codex } from '@openai/codex-sdk'
 
-import { logInfo, logVerbose, logVerboseStream } from '../logger.js'
+import { logInfo, logVerbose, logVerboseStream } from '../logger'
 
 /**
  * Creates an engine that invokes OpenAI Codex via the official SDK.

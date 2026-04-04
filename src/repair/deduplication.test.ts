@@ -7,10 +7,10 @@ import {
   isRecentDuplicate,
   recordError,
   resetDeduplication,
-} from './deduplication.js'
+} from './deduplication'
 
 // Suppress chalk logging during tests
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),

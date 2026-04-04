@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { logError, logInfo, logStep, logSuccess, logWarning } from './logger.js'
+import { logError, logInfo, logStep, logSuccess, logWarning } from './logger'
 
 describe('logger', () => {
   afterEach(() => {

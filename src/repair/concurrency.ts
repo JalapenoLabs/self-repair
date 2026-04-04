@@ -2,9 +2,9 @@
 
 import type { ChildProcess } from 'node:child_process'
 
-import type { ConcurrencyTracker } from '../types.js'
+import type { ConcurrencyTracker } from '../types'
 
-import { logWarning } from '../logger.js'
+import { logWarning } from '../logger'
 
 /**
  * Creates a concurrency tracker that limits the number of active

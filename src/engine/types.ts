@@ -6,4 +6,4 @@ export type {
   EngineInvokeOptions,
   EngineResult,
   SelfRepairEngine,
-} from '../types.js'
+} from '../types'

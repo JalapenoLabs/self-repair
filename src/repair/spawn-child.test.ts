@@ -1,19 +1,19 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ResolvedOptions, RepairTrigger } from '../types.js'
+import type { ResolvedOptions, RepairTrigger } from '../types'
 
 import { spawn } from 'node:child_process'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { CHILD_PAYLOAD_ENV_KEY } from '../constants.js'
-import { spawnChildProcess } from './spawn-child.js'
+import { CHILD_PAYLOAD_ENV_KEY } from '../constants'
+import { spawnChildProcess } from './spawn-child'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
 }))
 
-vi.mock('../skills/inject.js', () => ({
+vi.mock('../skills/inject', () => ({
   resolveSkillsSourcePath: vi.fn().mockReturnValue('/mocked/skills/path'),
 }))
 

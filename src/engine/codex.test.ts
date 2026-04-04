@@ -4,9 +4,9 @@ import { Codex } from '@openai/codex-sdk'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createCodexEngine } from './codex.js'
+import { createCodexEngine } from './codex'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logVerbose: vi.fn(),
   logVerboseStream: vi.fn(),

@@ -11,7 +11,7 @@
 // stream to stdout during the test. This is intentional -- when debugging
 // a failing e2e test, you want to see exactly what Claude did.
 
-import type { BugReport, ChildWorkerPayload, ResolvedOptions } from '../types.js'
+import type { BugReport, ChildWorkerPayload, ResolvedOptions } from '../types'
 
 import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -21,8 +21,8 @@ import { join } from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { resolveSkillsSourcePath } from '../skills/inject.js'
-import { executeRepairPipeline } from './pipeline.js'
+import { resolveSkillsSourcePath } from '../skills/inject'
+import { executeRepairPipeline } from './pipeline'
 
 // ─── Mock GitHub operations, git clone, and run logging ─────────────────────
 // Everything else (tmp dir, skill injection, Claude engine) runs for real.
@@ -34,7 +34,7 @@ const mockCreateIssue = vi.fn().mockResolvedValue({
   url: 'https://github.com/test/buggy-app/issues/99',
 })
 
-vi.mock('../issue-tracker/factory.js', () => ({
+vi.mock('../issue-tracker/factory', () => ({
   createIssueTracker: vi.fn(() => ({
     kind: 'github',
     validatePermissions: vi.fn().mockResolvedValue(undefined),
@@ -43,18 +43,18 @@ vi.mock('../issue-tracker/factory.js', () => ({
   })),
 }))
 
-vi.mock('../pull-request/github.js', () => ({
+vi.mock('../pull-request/github', () => ({
   createGitHubPullRequest: vi.fn().mockResolvedValue({
     url: 'https://github.com/test/buggy-app/pull/1',
     number: 1,
   }),
 }))
 
-vi.mock('../run-log/writer.js', () => ({
+vi.mock('../run-log/writer', () => ({
   writeRunLog: vi.fn().mockReturnValue('/tmp/fake-log.json'),
 }))
 
-vi.mock('../run-log/pruner.js', () => ({
+vi.mock('../run-log/pruner', () => ({
   pruneRunLogs: vi.fn(),
 }))
 
@@ -62,7 +62,7 @@ vi.mock('../run-log/pruner.js', () => ({
 // instead of hitting GitHub. The synthetic repo path is set in beforeAll.
 let syntheticRepoPath = ''
 
-vi.mock('../git/clone.js', () => ({
+vi.mock('../git/clone', () => ({
   cloneRepository: vi.fn(async (_repo: string, targetDir: string) => {
     execFileSync('git', [ 'clone', syntheticRepoPath, targetDir ])
   }),
@@ -205,12 +205,12 @@ describe.runIf(process.env.ANTHROPIC_API_KEY)(
       )
 
       // Run log should have been written
-      const { writeRunLog } = await import('../run-log/writer.js')
+      const { writeRunLog } = await import('../run-log/writer')
       expect(writeRunLog).toHaveBeenCalledOnce()
 
       // If Claude assessed this as simple, it should have attempted a PR.
       // If complex, PR creation is correctly skipped.
-      const { createGitHubPullRequest } = await import('../pull-request/github.js')
+      const { createGitHubPullRequest } = await import('../pull-request/github')
       if (bugReport.complexity === 'simple') {
         expect(createGitHubPullRequest).toHaveBeenCalled()
       }

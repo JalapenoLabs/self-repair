@@ -1,12 +1,12 @@
 // Copyright © 2026 self-repair contributors
 
-import type { BugReport } from '../types.js'
+import type { BugReport } from '../types'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createJiraTracker } from './jira.js'
+import { createJiraTracker } from './jira'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logError: vi.fn(),
 }))

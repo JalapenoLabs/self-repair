@@ -7,4 +7,4 @@ export type {
   IssueReference,
   IssueTrackerContract,
   IssueTrackerKind,
-} from '../types.js'
+} from '../types'

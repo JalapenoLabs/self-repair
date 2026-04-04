@@ -1,15 +1,15 @@
 // Copyright © 2026 self-repair contributors
 
 import type { ChildProcess } from 'node:child_process'
-import type { ChildWorkerPayload, ResolvedOptions, RepairTrigger } from '../types.js'
+import type { ChildWorkerPayload, ResolvedOptions, RepairTrigger } from '../types'
 
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHILD_PAYLOAD_ENV_KEY } from '../constants.js'
-import { logInfo } from '../logger.js'
-import { resolveSkillsSourcePath } from '../skills/inject.js'
+import { CHILD_PAYLOAD_ENV_KEY } from '../constants'
+import { logInfo } from '../logger'
+import { resolveSkillsSourcePath } from '../skills/inject'
 
 /**
  * Resolves the absolute path to the child-worker script.

@@ -1,23 +1,23 @@
 // Copyright © 2026 self-repair contributors
 
-import type { BugReport, ChildWorkerPayload, MakePrSkillOutput, ResolvedOptions } from '../types.js'
+import type { BugReport, ChildWorkerPayload, MakePrSkillOutput, ResolvedOptions } from '../types'
 
 import { readFileSync } from 'node:fs'
 
 import { dir as createTmpDir } from 'tmp-promise'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { cloneRepository } from '../git/clone.js'
-import { createEngine } from '../engine/factory.js'
-import { createIssueTracker } from '../issue-tracker/factory.js'
-import { createGitHubPullRequest } from '../pull-request/github.js'
-import { pruneRunLogs } from '../run-log/pruner.js'
-import { writeRunLog } from '../run-log/writer.js'
-import { injectSkills } from '../skills/inject.js'
-import { computeErrorHash } from './deduplication.js'
-import { executeRepairPipeline } from './pipeline.js'
+import { cloneRepository } from '../git/clone'
+import { createEngine } from '../engine/factory'
+import { createIssueTracker } from '../issue-tracker/factory'
+import { createGitHubPullRequest } from '../pull-request/github'
+import { pruneRunLogs } from '../run-log/pruner'
+import { writeRunLog } from '../run-log/writer'
+import { injectSkills } from '../skills/inject'
+import { computeErrorHash } from './deduplication'
+import { executeRepairPipeline } from './pipeline'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logWarning: vi.fn(),
   logError: vi.fn(),
@@ -26,15 +26,15 @@ vi.mock('../logger.js', () => ({
 }))
 
 vi.mock('tmp-promise', () => ({ dir: vi.fn() }))
-vi.mock('../git/clone.js', () => ({ cloneRepository: vi.fn() }))
-vi.mock('../skills/inject.js', () => ({ injectSkills: vi.fn() }))
-vi.mock('../engine/factory.js', () => ({ createEngine: vi.fn() }))
-vi.mock('../issue-tracker/factory.js', () => ({ createIssueTracker: vi.fn() }))
-vi.mock('../pull-request/github.js', () => ({ createGitHubPullRequest: vi.fn() }))
-vi.mock('../run-log/writer.js', () => ({ writeRunLog: vi.fn() }))
-vi.mock('../run-log/pruner.js', () => ({ pruneRunLogs: vi.fn() }))
+vi.mock('../git/clone', () => ({ cloneRepository: vi.fn() }))
+vi.mock('../skills/inject', () => ({ injectSkills: vi.fn() }))
+vi.mock('../engine/factory', () => ({ createEngine: vi.fn() }))
+vi.mock('../issue-tracker/factory', () => ({ createIssueTracker: vi.fn() }))
+vi.mock('../pull-request/github', () => ({ createGitHubPullRequest: vi.fn() }))
+vi.mock('../run-log/writer', () => ({ writeRunLog: vi.fn() }))
+vi.mock('../run-log/pruner', () => ({ pruneRunLogs: vi.fn() }))
 vi.mock('node:fs', () => ({ readFileSync: vi.fn() }))
-vi.mock('./deduplication.js', () => ({
+vi.mock('./deduplication', () => ({
   computeErrorHash: vi.fn(),
 }))
 

@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { resolveTokens } from './resolve-tokens.js'
+import { resolveTokens } from './resolve-tokens'
 
 describe('resolveTokens', () => {
   afterEach(() => {

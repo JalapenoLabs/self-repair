@@ -8,10 +8,10 @@ import 'dotenv/config'
 
 import { Command } from 'commander'
 
-import { getResolvedOptions, setSelfRepairOptions } from './config/index.js'
-import { logError, logInfo } from './logger.js'
-import { executeRepairPipeline } from './repair/pipeline.js'
-import { resolveSkillsSourcePath } from './skills/inject.js'
+import { getResolvedOptions, setSelfRepairOptions } from './config/index'
+import { logError, logInfo } from './logger'
+import { executeRepairPipeline } from './repair/pipeline'
+import { resolveSkillsSourcePath } from './skills/inject'
 
 const program = new Command()
 

@@ -1,12 +1,12 @@
 // Copyright © 2026 self-repair contributors
 
-import type { ConcurrencyTracker, RepairTrigger, ResolvedOptions } from '../types.js'
+import type { ConcurrencyTracker, RepairTrigger, ResolvedOptions } from '../types'
 
-import { getResolvedOptions, isProductionGuarded } from '../config/options.js'
-import { logInfo, logWarning } from '../logger.js'
-import { createConcurrencyTracker } from './concurrency.js'
-import { isRecentDuplicate, recordError } from './deduplication.js'
-import { spawnChildProcess } from './spawn-child.js'
+import { getResolvedOptions, isProductionGuarded } from '../config/options'
+import { logInfo, logWarning } from '../logger'
+import { createConcurrencyTracker } from './concurrency'
+import { isRecentDuplicate, recordError } from './deduplication'
+import { spawnChildProcess } from './spawn-child'
 
 // ─── Module-Level Concurrency State ─────────────────────────────────────────
 

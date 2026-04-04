@@ -1,11 +1,11 @@
 // Copyright © 2026 self-repair contributors
 
-import type { IssueTrackerContract, IssueTrackerKind } from './types.js'
+import type { IssueTrackerContract, IssueTrackerKind } from './types'
 
-import type { ResolvedOptions } from '../types.js'
+import type { ResolvedOptions } from '../types'
 
-import { createGitHubTracker } from './github.js'
-import { createJiraTracker } from './jira.js'
+import { createGitHubTracker } from './github'
+import { createJiraTracker } from './jira'
 
 type TrackerFactory = (options: ResolvedOptions) => IssueTrackerContract
 

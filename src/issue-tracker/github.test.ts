@@ -1,14 +1,14 @@
 // Copyright © 2026 self-repair contributors
 
-import type { BugReport } from '../types.js'
+import type { BugReport } from '../types'
 
 import { Octokit } from '@octokit/rest'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createGitHubTracker } from './github.js'
+import { createGitHubTracker } from './github'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logError: vi.fn(),
 }))

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
-import type { SelfRepairOptions } from '../types.js'
+import type { SelfRepairOptions } from '../types'
 
 type ResolvedTokens = {
   claudeToken?: string

@@ -1,13 +1,13 @@
 // Copyright © 2026 self-repair contributors
 
-import type { RunLog } from './types.js'
+import type { RunLog } from './types'
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
-import { SELF_REPAIR_HOME_DIR, SELF_REPAIR_LOGS_DIR } from '../constants.js'
-import { logError, logInfo } from '../logger.js'
+import { SELF_REPAIR_HOME_DIR, SELF_REPAIR_LOGS_DIR } from '../constants'
+import { logError, logInfo } from '../logger'
 
 /**
  * Returns the absolute path to the self-repair logs directory (~/.self-repair/logs/).

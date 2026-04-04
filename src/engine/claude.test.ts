@@ -4,9 +4,9 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createClaudeEngine } from './claude.js'
+import { createClaudeEngine } from './claude'
 
-vi.mock('../logger.js', () => ({
+vi.mock('../logger', () => ({
   logInfo: vi.fn(),
   logVerbose: vi.fn(),
   logVerboseStream: vi.fn(),

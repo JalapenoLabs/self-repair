@@ -6,7 +6,7 @@ import type {
   MakePrSkillOutput,
   RunLog,
   RunLogStep,
-} from '../types.js'
+} from '../types'
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -14,15 +14,15 @@ import { tmpdir } from 'node:os'
 
 import { dir as createTmpDir } from 'tmp-promise'
 
-import { createEngine } from '../engine/factory.js'
-import { cloneRepository } from '../git/clone.js'
-import { createIssueTracker } from '../issue-tracker/factory.js'
-import { logError, logStep, logSuccess } from '../logger.js'
-import { createGitHubPullRequest } from '../pull-request/github.js'
-import { pruneRunLogs } from '../run-log/pruner.js'
-import { writeRunLog } from '../run-log/writer.js'
-import { injectSkills } from '../skills/inject.js'
-import { computeErrorHash } from './deduplication.js'
+import { createEngine } from '../engine/factory'
+import { cloneRepository } from '../git/clone'
+import { createIssueTracker } from '../issue-tracker/factory'
+import { logError, logStep, logSuccess } from '../logger'
+import { createGitHubPullRequest } from '../pull-request/github'
+import { pruneRunLogs } from '../run-log/pruner'
+import { writeRunLog } from '../run-log/writer'
+import { injectSkills } from '../skills/inject'
+import { computeErrorHash } from './deduplication'
 
 const TOTAL_STEPS = 7
 
