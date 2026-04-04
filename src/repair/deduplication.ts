@@ -1,7 +1,7 @@
 // Copyright © 2026 self-repair contributors
 
 import { createHash } from 'node:crypto'
-import { basename } from 'node:path'
+import path from 'node:path'
 
 import type { RepairTrigger } from '../types.js'
 
@@ -20,9 +20,9 @@ const recentErrors = new Map<string, number>()
 function normalizeForHashing(text: string): string {
   return text
     // Collapse Windows absolute paths to basenames
-    .replace(/[A-Z]:\\[^\s:]+/g, (match) => basename(match))
+    .replace(/[A-Z]:\\[^\s:]+/g, (match) => path.win32.basename(match))
     // Collapse Unix absolute paths to basenames
-    .replace(/\/[^\s:]+/g, (match) => basename(match))
+    .replace(/\/[^\s:]+/g, (match) => path.posix.basename(match))
     // Strip line:column pairs (e.g. ":42:17")
     .replace(/:\d+:\d+/g, '')
     // Strip ISO timestamps
