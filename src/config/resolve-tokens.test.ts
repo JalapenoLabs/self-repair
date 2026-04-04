@@ -33,6 +33,7 @@ describe('resolveTokens', () => {
   })
 
   it('falls back to CLAUDE_API_KEY env var as secondary', () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
     vi.stubEnv('CLAUDE_API_KEY', 'from-claude-env')
 
     const tokens = resolveTokens({})

@@ -38,16 +38,16 @@ function readDotfileToken(directory: string, filename: string, key: string): str
  */
 export function resolveTokens(options: SelfRepairOptions): ResolvedTokens {
   const claudeToken = options.CLAUDE_API_TOKEN
-    ?? process.env.ANTHROPIC_API_KEY
-    ?? process.env.CLAUDE_API_KEY
-    ?? readDotfileToken('.claude', 'credentials.json', 'apiKey')
+    || process.env.ANTHROPIC_API_KEY
+    || process.env.CLAUDE_API_KEY
+    || readDotfileToken('.claude', 'credentials.json', 'apiKey')
 
   const openaiToken = options.OPENAI_API_TOKEN
-    ?? process.env.OPENAI_API_KEY
-    ?? readDotfileToken('.codex', 'credentials.json', 'apiKey')
+    || process.env.OPENAI_API_KEY
+    || readDotfileToken('.codex', 'credentials.json', 'apiKey')
 
   const githubToken = options.GITHUB_TOKEN
-    ?? process.env.GITHUB_TOKEN
+    || process.env.GITHUB_TOKEN
 
   return { claudeToken, openaiToken, githubToken }
 }
