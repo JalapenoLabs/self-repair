@@ -114,6 +114,18 @@ jobs:
           echo ""
           echo "All smoke tests passed."
 
+      # ─── End-to-End Test ──────────────────────────────────────────
+      # Runs the full repair pipeline with a real Claude invocation.
+      # Requires ANTHROPIC_API_KEY; skips gracefully when absent.
+
+      - name: End-to-end test
+        id: e2e
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: yarn test:e2e
+
       - name: Test dashboard
         if: steps.tests.outcome == 'success' || steps.tests.outcome == 'failure'
         uses: test-summary/action@v2
@@ -176,6 +188,14 @@ jobs:
           elif [ "${{ steps.smoke.outcome }}" = "failure" ]; then
             echo -e "\033[31m✗ Smoke tests failed\033[0m"
             FAILURES="${FAILURES}Smoke tests failed. "
+            FAILED=1
+          fi
+
+          if [ "${{ steps.e2e.outcome }}" = "success" ]; then
+            echo -e "\033[32m✓ E2E test passed\033[0m"
+          elif [ "${{ steps.e2e.outcome }}" = "failure" ]; then
+            echo -e "\033[31m✗ E2E test failed\033[0m"
+            FAILURES="${FAILURES}E2E test failed. "
             FAILED=1
           fi
 

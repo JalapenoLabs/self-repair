@@ -1,7 +1,7 @@
 // Copyright © 2026 self-repair contributors
 
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -35,11 +35,10 @@ describe('pruneRunLogs', () => {
   afterEach(() => {
     // Best-effort cleanup
     try {
-      const { rmSync } = require('node:fs')
       rmSync(testLogsDir, { recursive: true, force: true })
     }
     catch {
-      // Ignore cleanup failures
+      // Best-effort cleanup
     }
   })
 

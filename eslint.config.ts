@@ -166,7 +166,7 @@ export default defineConfig([
 
   // Config files override
   {
-    files: [ '**/*.config.{cjs,js,ts}' ],
+    files: [ '**/*.config.{cjs,js,ts}', '**/*.config.*.{cjs,js,ts}' ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
       'import-x/no-default-export': 'off',

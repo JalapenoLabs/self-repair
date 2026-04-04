@@ -1,6 +1,6 @@
 // Copyright © 2026 self-repair contributors
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -38,11 +38,10 @@ describe('injectSkills', () => {
 
   afterEach(() => {
     try {
-      const { rmSync } = require('node:fs')
       rmSync(join(testTargetDir, '..'), { recursive: true, force: true })
     }
     catch {
-      // Ignore cleanup failures
+      // Best-effort cleanup
     }
   })
 

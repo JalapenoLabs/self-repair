@@ -7,6 +7,7 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     include: [ 'src/**/*.test.ts' ],
+    exclude: [ 'src/**/*.e2e.test.ts' ],
     restoreMocks: true,
     pool: 'forks',
     coverage: {
