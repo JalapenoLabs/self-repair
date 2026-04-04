@@ -145,7 +145,7 @@ jobs:
           # permissive install so we have node_modules to run tsx from source.
           if [ "${{ steps.install.outcome }}" != "success" ]; then
             echo "Primary install failed -- running permissive install for self-repair..."
-            yarn install
+            yarn install --no-immutable
           else
             echo "Using existing node_modules from primary install."
           fi
