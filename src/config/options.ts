@@ -10,6 +10,7 @@ import {
   DEFAULT_RUN_IN_PRODUCTION,
 } from '../constants'
 import { logWarning } from '../logger'
+import { initRedaction } from '../redact'
 import { resolveTokens } from './resolve-tokens'
 
 // ─── Module-Level State ─────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ export function setSelfRepairOptions(options: SelfRepairOptions): ResolvedOption
   }
 
   globalOptions = resolved
+  initRedaction(resolved)
   return resolved
 }
 
