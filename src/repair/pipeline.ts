@@ -2,6 +2,8 @@
 
 import type {
   BugReport,
+  BugReportComplexity,
+  BugReportSeverity,
   ChildWorkerPayload,
   MakePrSkillOutput,
   RunLog,
@@ -9,7 +11,7 @@ import type {
 } from '../types'
 
 import { execFile } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
@@ -20,22 +22,33 @@ import { createEngine } from '../engine/factory'
 import { checkoutPrBranch } from '../git/checkout-pr'
 import { cloneRepository } from '../git/clone'
 import { createIssueTracker } from '../issue-tracker/factory'
-import { logError, logStep, logSuccess, logUsage, logWarning } from '../logger'
+import {
+  logError,
+  logStep,
+  logSuccess,
+  logUsage,
+  logWarning,
+} from '../logger'
 import { commentOnPullRequest } from '../pull-request/comment'
 import { createGitHubPullRequest } from '../pull-request/github'
 import { pruneRunLogs } from '../run-log/pruner'
 import { writeRunLog } from '../run-log/writer'
 import { injectSkills } from '../skills/inject'
 import { computeErrorHash } from './deduplication'
+import { parseFrontmatter } from './parse-frontmatter'
 
 const execFileAsync = promisify(execFile)
 
 const TOTAL_STEPS_STANDARD = 7
 const TOTAL_STEPS_PR_MODE = 6
 
+// Path where skills write their output files, relative to the repo root
+const SELF_REPAIR_DIR = '.self-repair'
+const BUG_REPORT_FILE = 'bug-report.md'
+const PR_METADATA_FILE = 'pr-metadata.md'
+
 /**
- * Reads a skill SKILL.md file from the injected skills directory
- * and returns its content as a string.
+ * Reads a skill SKILL.md file from the injected skills directory.
  */
 function readSkillContent(skillsDir: string, skillName: string): string {
   const skillPath = join(skillsDir, skillName, 'SKILL.md')
@@ -86,28 +99,6 @@ function buildPrompt(
 }
 
 /**
- * Attempts to parse structured JSON from the engine output.
- */
-function parseJsonFromOutput<Shape>(output: string): Shape | null {
-  const fenceMatch = output.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
-  if (fenceMatch?.[1]) {
-    try {
-      return JSON.parse(fenceMatch[1]) as Shape
-    }
-    catch {
-      // Fall through to raw parse
-    }
-  }
-
-  try {
-    return JSON.parse(output) as Shape
-  }
-  catch {
-    return null
-  }
-}
-
-/**
  * Records the duration and outcome of a pipeline step into the run log.
  */
 function recordStep(
@@ -126,9 +117,98 @@ function recordStep(
 }
 
 /**
+ * Ensures the .self-repair/ directory exists in the working directory
+ * and returns its absolute path.
+ */
+function ensureSelfRepairDir(workDir: string): string {
+  const dirPath = join(workDir, SELF_REPAIR_DIR)
+  mkdirSync(dirPath, { recursive: true })
+  return dirPath
+}
+
+/**
+ * Reads and parses a skill output file (frontmatter + body).
+ * Returns null if the file doesn't exist.
+ */
+function readSkillOutput(
+  workDir: string,
+  filename: string,
+): { meta: Record<string, string | string[]>, body: string } | null {
+  const filePath = join(workDir, SELF_REPAIR_DIR, filename)
+  if (!existsSync(filePath)) {
+    return null
+  }
+  const content = readFileSync(filePath, 'utf-8')
+  return parseFrontmatter(content)
+}
+
+/**
+ * Parses the bug report from the skill output file.
+ */
+function parseBugReport(workDir: string): BugReport | null {
+  const output = readSkillOutput(workDir, BUG_REPORT_FILE)
+  if (!output) {
+    return null
+  }
+
+  const title = output.meta.title
+  const severity = output.meta.severity
+  const complexity = output.meta.complexity
+  const affectedFiles = output.meta.affectedFiles
+
+  if (
+    typeof title !== 'string'
+    || typeof severity !== 'string'
+    || typeof complexity !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    title,
+    severity: severity as BugReportSeverity,
+    complexity: complexity as BugReportComplexity,
+    affectedFiles: Array.isArray(affectedFiles)
+      ? affectedFiles
+      : [],
+    description: output.body,
+    reproductionSteps: '',
+    suggestedFix: '',
+  }
+}
+
+/**
+ * Parses the PR metadata from the skill output file.
+ */
+function parsePrMetadata(workDir: string): MakePrSkillOutput | null {
+  const output = readSkillOutput(workDir, PR_METADATA_FILE)
+  if (!output) {
+    return null
+  }
+
+  const branch = output.meta.branch
+  const commitMessage = output.meta.commitMessage
+  const prTitle = output.meta.prTitle
+
+  if (
+    typeof branch !== 'string'
+    || typeof commitMessage !== 'string'
+    || typeof prTitle !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    branch,
+    commitMessage,
+    prTitle,
+    prBody: output.body,
+  }
+}
+
+/**
  * Commits and pushes all changes in the working directory.
- * Returns null on success, or an error description string on failure
- * so the caller can hand it to the agent for diagnosis.
+ * Returns null on success, or an error description string on failure.
  */
 async function commitAndPush(
   repoDir: string,
@@ -144,8 +224,7 @@ async function commitAndPush(
     }
 
     // Write commit message to a file to avoid shell interpretation
-    // issues with special characters (e.g. --flags in the message).
-    const { writeFileSync, unlinkSync } = await import('node:fs')
+    // issues with special characters in the message.
     const msgFile = join(repoDir, '.self-repair-commit-msg')
     writeFileSync(msgFile, commitMessage, 'utf-8')
 
@@ -173,7 +252,7 @@ async function commitAndPush(
 }
 
 /**
- * Saves the current HEAD sha so we can reset to it after in-place repair.
+ * Saves the current HEAD sha for later reset.
  */
 async function saveHeadRef(repoDir: string): Promise<string> {
   const { stdout } = await execFileAsync(
@@ -184,9 +263,7 @@ async function saveHeadRef(repoDir: string): Promise<string> {
 }
 
 /**
- * Resets the working directory to the given ref, cleaning up any
- * changes made during in-place repair. Used in CI mode so subsequent
- * steps see the original state.
+ * Resets the working directory to the given ref.
  */
 async function resetToRef(repoDir: string, ref: string): Promise<void> {
   await execFileAsync('git', [ 'reset', '--hard', ref ], { cwd: repoDir })
@@ -198,7 +275,7 @@ async function resetToRef(repoDir: string, ref: string): Promise<void> {
 async function executeStandardPipeline(
   payload: ChildWorkerPayload,
   engine: ReturnType<typeof createEngine>,
-  cloneTarget: string,
+  workDir: string,
   skillsDir: string,
   bugReport: BugReport,
   errorHash: string,
@@ -239,33 +316,34 @@ async function executeStandardPipeline(
   logStep(7, TOTAL_STEPS_STANDARD, 'Attempting automated repair...')
   stepStart = Date.now()
   const repairSkill = readSkillContent(skillsDir, 'repair')
-  const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
+  const repairContext = `## Bug Report\n${bugReport.description}`
   const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
   const repairResult = await engine.invoke({
-    workingDirectory: cloneTarget,
+    workingDirectory: workDir,
     prompt: repairPrompt,
     verbose: payload.options.verbose,
   })
 
   if (!repairResult.success) {
     recordStep(steps, 'repair', stepStart, false, repairResult.output)
-    logError('Automated repair failed. The issue has been filed for manual review.')
+    logError('Automated repair failed.')
     runLog.outcome = 'partial'
     return
   }
 
   recordStep(steps, 'repair', stepStart, true, repairResult.output)
 
+  // Create PR via make-pr skill
   stepStart = Date.now()
   const makePrSkill = readSkillContent(skillsDir, 'make-pr')
   const prContext = [
-    `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``,
+    `## Bug Report\n${bugReport.description}`,
     `## Issue Reference\n${runLog.issueUrl ?? 'No issue URL available'}`,
     `## Changes Made\n${repairResult.output}`,
   ].join('\n\n')
   const makePrPrompt = buildPrompt(payload, makePrSkill, prContext)
   const makePrResult = await engine.invoke({
-    workingDirectory: cloneTarget,
+    workingDirectory: workDir,
     prompt: makePrPrompt,
     verbose: payload.options.verbose,
   })
@@ -277,7 +355,8 @@ async function executeStandardPipeline(
     return
   }
 
-  const prInfo = parseJsonFromOutput<MakePrSkillOutput>(makePrResult.output)
+  // Read PR metadata from file
+  const prInfo = parsePrMetadata(workDir)
   if (prInfo && payload.options.githubToken && payload.options.repo) {
     try {
       const prTitle = prInfo.prTitle.toLowerCase().startsWith('self repair:')
@@ -306,7 +385,13 @@ async function executeStandardPipeline(
     }
   }
   else {
-    recordStep(steps, 'make-pr', stepStart, false, 'Missing PR info or tokens')
+    recordStep(
+      steps,
+      'make-pr',
+      stepStart,
+      false,
+      'Missing PR metadata file or tokens',
+    )
     runLog.outcome = 'partial'
   }
 }
@@ -325,8 +410,7 @@ async function executePrRepairPipeline(
 ): Promise<void> {
   const prNumber = payload.options.pullRequestNumber!
 
-  // In clone mode, we need to checkout the PR branch.
-  // In in-place mode, we're already on the PR branch.
+  // In clone mode, checkout the PR branch. In in-place mode, already on it.
   let branchName: string
   if (isInPlace) {
     const { stdout } = await execFileAsync(
@@ -358,7 +442,7 @@ async function executePrRepairPipeline(
   logStep(6, TOTAL_STEPS_PR_MODE, 'Attempting automated repair...')
   const stepStart = Date.now()
   const repairSkill = readSkillContent(skillsDir, 'repair')
-  const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
+  const repairContext = `## Bug Report\n${bugReport.description}`
   const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
   const repairResult = await engine.invoke({
     workingDirectory: workDir,
@@ -393,7 +477,7 @@ async function executePrRepairPipeline(
       'Your code changes are applied but the automated commit+push failed.',
       `The error was: ${commitError}`,
       '',
-      'Please diagnose the issue, fix it, then stage, commit, and push your changes.',
+      'Please diagnose the issue, fix it, then stage, commit, and push.',
       `Use this commit message: ${commitMessage}`,
       `You are on branch: ${branchName}`,
       '',
@@ -459,7 +543,9 @@ async function executePrRepairPipeline(
  * invokes the LLM to diagnose the bug, and either files an issue + opens
  * a PR (standard mode) or commits directly to an existing PR (PR mode).
  */
-export async function executeRepairPipeline(payload: ChildWorkerPayload): Promise<RunLog['outcome']> {
+export async function executeRepairPipeline(
+  payload: ChildWorkerPayload,
+): Promise<RunLog['outcome']> {
   const isPrMode = typeof payload.options.pullRequestNumber === 'number'
   const isInPlace = !!payload.workingDirectory
   const totalSteps = isPrMode
@@ -493,15 +579,12 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     let workDir: string
 
     if (isInPlace) {
-      // CI mode: work directly in the provided directory.
-      // Save HEAD so we can reset after repair.
       workDir = payload.workingDirectory!
       originalHeadRef = await saveHeadRef(workDir)
       logStep(1, totalSteps, 'Using current checkout (CI mode)...')
       recordStep(steps, 'use-checkout', Date.now(), true, workDir)
     }
     else {
-      // Standard mode: clone into a temp directory.
       logStep(1, totalSteps, 'Creating temporary workspace...')
       let stepStart = Date.now()
       const tmpResult = await createTmpDir({
@@ -538,6 +621,9 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
       recordStep(steps, 'inject-skills', stepStart, true)
     }
 
+    // Ensure the .self-repair/ output directory exists
+    ensureSelfRepairDir(workDir)
+
     // Bug report via LLM
     const diagStep = isInPlace ? 3 : 4
     logStep(diagStep, totalSteps, `Running bug analysis with ${payload.options.engine}...`)
@@ -560,15 +646,16 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
       throw new Error(`Bug report generation failed: ${bugReportResult.output}`)
     }
 
-    const bugReport = parseJsonFromOutput<BugReport>(bugReportResult.output)
+    // Read the bug report from the file the agent wrote
+    const bugReport = parseBugReport(workDir)
     if (!bugReport) {
-      recordStep(steps, 'bug-report', stepStart, false, bugReportResult.output)
+      recordStep(steps, 'bug-report', stepStart, false, 'Bug report file not found or invalid')
       throw new Error(
-        'Failed to parse structured bug report from engine output. '
-        + `Raw output:\n${bugReportResult.output.slice(0, 2000)}`,
+        'Failed to read bug report from .self-repair/bug-report.md. '
+        + 'The agent may not have written the file.',
       )
     }
-    recordStep(steps, 'bug-report', stepStart, true, bugReportResult.output)
+    recordStep(steps, 'bug-report', stepStart, true, bugReport.title)
 
     // Branch into standard or PR repair mode
     if (isPrMode) {
@@ -594,7 +681,6 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     pruneRunLogs(payload.options.maxLogCount)
 
     // In-place mode: reset the working directory to its original state
-    // so subsequent CI steps see the original checkout.
     if (isInPlace && originalHeadRef && payload.workingDirectory) {
       try {
         await resetToRef(payload.workingDirectory, originalHeadRef)

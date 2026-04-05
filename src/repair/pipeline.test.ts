@@ -1,8 +1,6 @@
 // Copyright © 2026 self-repair contributors
 
-import type { BugReport, ChildWorkerPayload, MakePrSkillOutput, ResolvedOptions } from '../types'
-
-import { readFileSync } from 'node:fs'
+import type { BugReport, ChildWorkerPayload, ResolvedOptions } from '../types'
 
 import { dir as createTmpDir } from 'tmp-promise'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,10 +32,20 @@ vi.mock('../issue-tracker/factory', () => ({ createIssueTracker: vi.fn() }))
 vi.mock('../pull-request/github', () => ({ createGitHubPullRequest: vi.fn() }))
 vi.mock('../run-log/writer', () => ({ writeRunLog: vi.fn() }))
 vi.mock('../run-log/pruner', () => ({ pruneRunLogs: vi.fn() }))
-vi.mock('node:fs', () => ({ readFileSync: vi.fn() }))
 vi.mock('./deduplication', () => ({
   computeErrorHash: vi.fn(),
 }))
+
+// Mock node:fs -- the pipeline reads skill content and skill output files
+vi.mock('node:fs', () => ({
+  readFileSync: vi.fn(),
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  unlinkSync: vi.fn(),
+  writeFileSync: vi.fn(),
+}))
+
+import { existsSync, readFileSync } from 'node:fs'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
 
@@ -58,19 +66,37 @@ const mockTracker = {
 
 const bugReport: BugReport = {
   title: 'Null crash in auth',
-  description: 'App crashes on login',
+  description: '## Description\nApp crashes on login',
   severity: 'high',
   complexity: 'simple',
   affectedFiles: [ 'src/auth.ts' ],
-  reproductionSteps: '1. Log in',
+  reproductionSteps: '',
+  suggestedFix: '',
 }
 
-const prInfo: MakePrSkillOutput = {
-  branch: 'fix/null-crash',
-  commitMessage: 'Fix null crash in auth',
-  prTitle: 'Fix: null crash in auth',
-  prBody: 'Adds null check',
-}
+const bugReportFrontmatter = [
+  '---',
+  'title: Null crash in auth',
+  'severity: high',
+  'complexity: simple',
+  'affectedFiles:',
+  '  - src/auth.ts',
+  '---',
+  '',
+  '## Description',
+  'App crashes on login',
+].join('\n')
+
+const prMetadataFrontmatter = [
+  '---',
+  'branch: self-repair/fix-null-crash',
+  'commitMessage: "fix: null crash in auth"',
+  'prTitle: "Self repair: fix null crash in auth"',
+  '---',
+  '',
+  '## Summary',
+  'Adds null check',
+].join('\n')
 
 function buildOptions(overrides: Partial<ResolvedOptions> = {}): ResolvedOptions {
   return {
@@ -113,7 +139,26 @@ beforeEach(() => {
   vi.mocked(injectSkills).mockReturnValue('/tmp/fake-work/repo/.claude/skills')
   vi.mocked(createEngine).mockReturnValue(mockEngine)
   vi.mocked(createIssueTracker).mockReturnValue(mockTracker)
-  vi.mocked(readFileSync).mockReturnValue('# Skill content' as any)
+
+  // readFileSync: return skill content for SKILL.md reads,
+  // and frontmatter content for .self-repair/ reads
+  vi.mocked(readFileSync).mockImplementation((filePath: any) => {
+    const path = String(filePath)
+    if (path.includes('bug-report.md') && path.includes('.self-repair')) {
+      return bugReportFrontmatter
+    }
+    if (path.includes('pr-metadata.md') && path.includes('.self-repair')) {
+      return prMetadataFrontmatter
+    }
+    // Default: skill content
+    return '# Skill content'
+  })
+
+  // existsSync: return true for .self-repair/ output files
+  vi.mocked(existsSync).mockImplementation((filePath: any) => {
+    const path = String(filePath)
+    return path.includes('.self-repair')
+  })
 
   mockFindExistingIssue.mockResolvedValue(null)
   mockCreateIssue.mockResolvedValue({
@@ -128,9 +173,9 @@ beforeEach(() => {
 
   // Default: 3 sequential successful invocations (bug-report, repair, make-pr)
   mockInvoke
-    .mockResolvedValueOnce({ success: true, output: JSON.stringify(bugReport), exitCode: 0 })
+    .mockResolvedValueOnce({ success: true, output: 'Bug report written', exitCode: 0 })
     .mockResolvedValueOnce({ success: true, output: 'Changes applied', exitCode: 0 })
-    .mockResolvedValueOnce({ success: true, output: JSON.stringify(prInfo), exitCode: 0 })
+    .mockResolvedValueOnce({ success: true, output: 'PR metadata written', exitCode: 0 })
 })
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -139,12 +184,19 @@ describe('executeRepairPipeline', () => {
   describe('happy path', () => {
     it('clones the repository', async () => {
       await executeRepairPipeline(buildPayload())
-      expect(cloneRepository).toHaveBeenCalledWith('owner/repo', expect.any(String), 'ghp_test')
+      expect(cloneRepository).toHaveBeenCalledWith(
+        'owner/repo',
+        expect.any(String),
+        'ghp_test',
+      )
     })
 
     it('creates a new GitHub issue when none exists', async () => {
       await executeRepairPipeline(buildPayload())
-      expect(mockCreateIssue).toHaveBeenCalledWith(bugReport, expect.any(String))
+      expect(mockCreateIssue).toHaveBeenCalledWith(
+        expect.objectContaining({ title: bugReport.title }),
+        expect.any(String),
+      )
     })
 
     it('creates a GitHub PR after a successful repair', async () => {
@@ -152,7 +204,10 @@ describe('executeRepairPipeline', () => {
       expect(createGitHubPullRequest).toHaveBeenCalledWith(
         'ghp_test',
         'owner/repo',
-        expect.objectContaining({ head: prInfo.branch, title: `Self repair: ${prInfo.prTitle}` }),
+        expect.objectContaining({
+          head: 'self-repair/fix-null-crash',
+          title: 'Self repair: fix null crash in auth',
+        }),
       )
     })
 
@@ -166,7 +221,9 @@ describe('executeRepairPipeline', () => {
     it('includes the issue URL in the run log', async () => {
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
-        expect.objectContaining({ issueUrl: 'https://github.com/owner/repo/issues/42' }),
+        expect.objectContaining({
+          issueUrl: 'https://github.com/owner/repo/issues/42',
+        }),
       )
     })
   })
@@ -185,22 +242,25 @@ describe('executeRepairPipeline', () => {
 
   describe('complex bug', () => {
     it('skips automated repair for complex bugs', async () => {
-      mockInvoke.mockReset()
-      mockInvoke.mockResolvedValueOnce({
-        success: true,
-        output: JSON.stringify({ ...bugReport, complexity: 'complex' }),
-        exitCode: 0,
+      // Override the bug report file to return complex
+      vi.mocked(readFileSync).mockImplementation((filePath: any) => {
+        const path = String(filePath)
+        if (path.includes('bug-report.md') && path.includes('.self-repair')) {
+          return bugReportFrontmatter.replace('complexity: simple', 'complexity: complex')
+        }
+        return '# Skill content'
       })
       await executeRepairPipeline(buildPayload())
       expect(createGitHubPullRequest).not.toHaveBeenCalled()
     })
 
     it('records outcome as partial for complex bugs', async () => {
-      mockInvoke.mockReset()
-      mockInvoke.mockResolvedValueOnce({
-        success: true,
-        output: JSON.stringify({ ...bugReport, complexity: 'complex' }),
-        exitCode: 0,
+      vi.mocked(readFileSync).mockImplementation((filePath: any) => {
+        const path = String(filePath)
+        if (path.includes('bug-report.md') && path.includes('.self-repair')) {
+          return bugReportFrontmatter.replace('complexity: simple', 'complexity: complex')
+        }
+        return '# Skill content'
       })
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
@@ -210,22 +270,21 @@ describe('executeRepairPipeline', () => {
   })
 
   describe('bug report failures', () => {
-    it('records outcome as failure when the bug-report engine call fails', async () => {
+    it('records failure when the bug-report engine call fails', async () => {
       mockInvoke.mockReset()
-      mockInvoke.mockResolvedValueOnce({ success: false, output: 'Engine error', exitCode: 1 })
+      mockInvoke.mockResolvedValueOnce({
+        success: false,
+        output: 'Engine error',
+        exitCode: 1,
+      })
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
         expect.objectContaining({ outcome: 'failure' }),
       )
     })
 
-    it('records outcome as failure when bug report JSON cannot be parsed', async () => {
-      mockInvoke.mockReset()
-      mockInvoke.mockResolvedValueOnce({
-        success: true,
-        output: 'this is not valid json',
-        exitCode: 0,
-      })
+    it('records failure when bug report file is not written', async () => {
+      vi.mocked(existsSync).mockReturnValue(false)
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
         expect.objectContaining({ outcome: 'failure' }),
@@ -234,10 +293,10 @@ describe('executeRepairPipeline', () => {
   })
 
   describe('repair failures', () => {
-    it('records outcome as partial when the repair engine call fails', async () => {
+    it('records partial when the repair engine call fails', async () => {
       mockInvoke.mockReset()
       mockInvoke
-        .mockResolvedValueOnce({ success: true, output: JSON.stringify(bugReport), exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, output: 'Bug report written', exitCode: 0 })
         .mockResolvedValueOnce({ success: false, output: 'Repair failed', exitCode: 1 })
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
@@ -245,20 +304,10 @@ describe('executeRepairPipeline', () => {
       )
     })
 
-    it('records outcome as partial when GitHub PR creation throws', async () => {
-      vi.mocked(createGitHubPullRequest).mockRejectedValue(new Error('Unprocessable entity'))
-      await executeRepairPipeline(buildPayload())
-      expect(writeRunLog).toHaveBeenCalledWith(
-        expect.objectContaining({ outcome: 'partial' }),
+    it('records partial when GitHub PR creation throws', async () => {
+      vi.mocked(createGitHubPullRequest).mockRejectedValue(
+        new Error('Unprocessable entity'),
       )
-    })
-
-    it('records outcome as partial when PR info is missing from engine output', async () => {
-      mockInvoke.mockReset()
-      mockInvoke
-        .mockResolvedValueOnce({ success: true, output: JSON.stringify(bugReport), exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, output: 'Changes applied', exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, output: 'not parseable json', exitCode: 0 })
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
         expect.objectContaining({ outcome: 'partial' }),
@@ -267,14 +316,14 @@ describe('executeRepairPipeline', () => {
   })
 
   describe('pre-clone failures', () => {
-    it('records outcome as failure when repo is missing from options', async () => {
+    it('records failure when repo is missing from options', async () => {
       await executeRepairPipeline(buildPayload({ repo: undefined }))
       expect(writeRunLog).toHaveBeenCalledWith(
         expect.objectContaining({ outcome: 'failure' }),
       )
     })
 
-    it('records outcome as failure when clone throws', async () => {
+    it('records failure when clone throws', async () => {
       vi.mocked(cloneRepository).mockRejectedValue(new Error('Clone failed'))
       await executeRepairPipeline(buildPayload())
       expect(writeRunLog).toHaveBeenCalledWith(
