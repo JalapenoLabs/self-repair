@@ -267,8 +267,20 @@ jobs:
 
           # Fetch the actual error output from failed CI steps via GitHub API.
           # This runs deterministically before the agent -- no LLM turns wasted.
+          #
+          # The --steps flag passes raw step outcomes from the workflow context
+          # (before continue-on-error is applied). This is necessary because the
+          # REST API only exposes `conclusion` which is always 'success' for steps
+          # with continue-on-error: true.
           echo -e "\033[35m[self-repair] Fetching failed step logs from GitHub API...\033[0m"
-          STACK=$(yarn tsx src/ci/fetch-failed-logs.ts 2>/dev/null || echo "")
+          STEP_OUTCOMES="Install dependencies:${{ steps.install.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Lint:${{ steps.lint.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Typecheck:${{ steps.typecheck.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Unit Tests:${{ steps.tests.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Build:${{ steps.build.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Smoke tests:${{ steps.smoke.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},End-to-end test:${{ steps.e2e.outcome }}"
+          STACK=$(yarn tsx src/ci/fetch-failed-logs.ts --steps "${STEP_OUTCOMES}" 2>/dev/null || echo "")
 
           ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}"
 

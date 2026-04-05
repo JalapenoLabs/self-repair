@@ -9,26 +9,30 @@
 // Works on any runner (GitHub-hosted, self-hosted, custom).
 //
 // Usage (from a workflow step):
-//   npx tsx src/ci/fetch-failed-logs.ts > /tmp/sr-error-context.log
+//   yarn tsx src/ci/fetch-failed-logs.ts --steps "Install:failure,Lint:success,..." > /tmp/logs.txt
 //
 // Required environment variables:
 //   GITHUB_TOKEN       - Token with actions:read scope
 //   GITHUB_REPOSITORY  - owner/repo (set automatically by GitHub Actions)
 //   GITHUB_RUN_ID      - Current workflow run ID (set automatically)
+//
+// The --steps flag receives the actual step outcomes from the workflow
+// context (steps.<id>.outcome), which reflect the raw result BEFORE
+// continue-on-error is applied. This is necessary because the REST API
+// only exposes `conclusion` (post-continue-on-error), which is always
+// 'success' for steps with continue-on-error: true.
 
 import { logError, logInfo } from '../logger'
-
-type StepResult = {
-  name: string
-  conclusion: string
-  number: number
-}
 
 type JobResult = {
   id: number
   name: string
   conclusion: string
-  steps: StepResult[]
+  steps: Array<{
+    name: string
+    conclusion: string
+    number: number
+  }>
 }
 
 const GITHUB_API = 'https://api.github.com'
@@ -51,13 +55,32 @@ async function githubFetch(
 }
 
 /**
- * Fetches all jobs for the current workflow run and identifies which
- * steps failed.
+ * Parses the --steps flag value into a map of step name -> outcome.
+ * Format: "Install:failure,Lint:success,Typecheck:failure,Tests:skipped"
  */
-async function getFailedSteps(
+function parseStepOutcomes(stepsArg: string): Map<string, string> {
+  const outcomes = new Map<string, string>()
+  for (const entry of stepsArg.split(',')) {
+    const colonIndex = entry.lastIndexOf(':')
+    if (colonIndex > 0) {
+      const name = entry.slice(0, colonIndex).trim()
+      const outcome = entry.slice(colonIndex + 1).trim()
+      outcomes.set(name, outcome)
+    }
+  }
+  return outcomes
+}
+
+/**
+ * Identifies which steps actually failed. Uses the --steps workflow
+ * outcomes as the source of truth (raw outcome before continue-on-error).
+ * Falls back to the REST API conclusion field when --steps is not provided.
+ */
+async function getFailedStepNames(
   token: string,
   repo: string,
   runId: string,
+  workflowOutcomes?: Map<string, string>,
 ): Promise<Array<{ jobId: number, jobName: string, stepName: string, stepNumber: number }>> {
   const response = await githubFetch(
     `/repos/${repo}/actions/runs/${runId}/jobs`,
@@ -79,7 +102,13 @@ async function getFailedSteps(
 
   for (const job of data.jobs) {
     for (const step of job.steps) {
-      if (step.conclusion === 'failure') {
+      // If we have workflow-provided outcomes, use those (they bypass
+      // continue-on-error masking). Otherwise fall back to API conclusion.
+      const isFailed = workflowOutcomes
+        ? workflowOutcomes.get(step.name) === 'failure'
+        : step.conclusion === 'failure'
+
+      if (isFailed) {
         failedSteps.push({
           jobId: job.id,
           jobName: job.name,
@@ -94,12 +123,7 @@ async function getFailedSteps(
 }
 
 /**
- * Fetches the full log text for a specific job and extracts the lines
- * belonging to the given step numbers.
- *
- * GitHub Actions job logs are returned as plain text with step headers
- * in the format: "##[group]Run <step command>" or timestamps followed
- * by the step name.
+ * Fetches the full log text for a specific job.
  */
 async function getJobLogs(
   token: string,
@@ -139,7 +163,6 @@ function extractStepLogs(
     // or just: "##[group]<step name>"
     if (line.includes('##[group]')) {
       if (capturing) {
-        // We were capturing this step and hit the next one -- stop
         break
       }
       if (line.toLowerCase().includes(stepName.toLowerCase())) {
@@ -149,9 +172,8 @@ function extractStepLogs(
     }
 
     if (capturing) {
-      // Strip the timestamp prefix if present (e.g. "2026-04-04T20:00:00.000Z ")
+      // Strip the timestamp prefix if present
       const cleaned = line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
-      // Skip empty group markers
       if (cleaned === '##[endgroup]') {
         continue
       }
@@ -159,7 +181,6 @@ function extractStepLogs(
     }
   }
 
-  // Return the last N lines (most relevant for errors)
   return stepLines.slice(-maxLines).join('\n')
 }
 
@@ -179,15 +200,34 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
+  // Parse --steps flag if provided
+  const stepsArgIndex = process.argv.indexOf('--steps')
+  const stepsArgValue = stepsArgIndex >= 0
+    ? process.argv[stepsArgIndex + 1]
+    : undefined
+  const workflowOutcomes = stepsArgValue
+    ? parseStepOutcomes(stepsArgValue)
+    : undefined
+
+  if (workflowOutcomes) {
+    logInfo(`Using workflow-provided step outcomes (${workflowOutcomes.size} steps)`)
+  }
+  else {
+    logInfo('No --steps flag provided, falling back to REST API conclusion field')
+  }
+
   logInfo(`Fetching failed step logs for run ${runId} in ${repo}...`)
 
-  const failedSteps = await getFailedSteps(token, repo, runId)
+  const failedSteps = await getFailedStepNames(token, repo, runId, workflowOutcomes)
   if (failedSteps.length === 0) {
     logInfo('No failed steps found.')
     return
   }
 
-  logInfo(`Found ${failedSteps.length} failed step(s): ${failedSteps.map((s) => s.stepName).join(', ')}`)
+  logInfo(
+    `Found ${failedSteps.length} failed step(s): `
+    + failedSteps.map((s) => s.stepName).join(', '),
+  )
 
   // Fetch logs for each unique job that has failures
   const jobIds = [ ...new Set(failedSteps.map((s) => s.jobId)) ]
@@ -225,7 +265,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // Write to stdout so the caller can capture it
   const output = outputSections.join('\n')
   process.stdout.write(output)
 }

@@ -10,9 +10,14 @@ import { logInfo } from '../logger'
 const execFileAsync = promisify(execFile)
 
 /**
- * Fetches the head branch name of a pull request and checks it out
- * in the given repository directory. This allows self-repair to commit
+ * Fetches the head branch of a pull request and checks it out in
+ * the given repository directory. This allows self-repair to commit
  * fixes directly to the PR's source branch.
+ *
+ * Handles shallow clones (--depth=1) by explicitly fetching the
+ * PR branch ref before checkout. Also handles branch names containing
+ * special characters (e.g. '#') since execFile passes args as an array,
+ * bypassing shell interpretation.
  */
 export async function checkoutPrBranch(
   repoDir: string,
@@ -37,9 +42,20 @@ export async function checkoutPrBranch(
   const branchName = pullRequest.head.ref
   logInfo(`PR #${pullRequestNumber} head branch: ${branchName}`)
 
-  // Fetch all branches and checkout the PR's source branch
-  await execFileAsync('git', [ 'fetch', 'origin', branchName ], { cwd: repoDir })
-  await execFileAsync('git', [ 'checkout', branchName ], { cwd: repoDir })
+  // Fetch the specific branch ref. The refspec maps the remote branch
+  // to a local tracking branch so checkout can find it.
+  await execFileAsync(
+    'git',
+    [ 'fetch', 'origin', `+refs/heads/${branchName}:refs/remotes/origin/${branchName}` ],
+    { cwd: repoDir },
+  )
+
+  // Checkout the branch, creating a local tracking branch from the remote
+  await execFileAsync(
+    'git',
+    [ 'checkout', '-b', branchName, `origin/${branchName}` ],
+    { cwd: repoDir },
+  )
 
   logInfo(`Checked out branch: ${branchName}`)
   return branchName
