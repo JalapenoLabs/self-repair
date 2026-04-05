@@ -153,7 +153,8 @@ async function commitAndPush(
     return true
   }
   catch (error) {
-    logError(`Failed to commit and push: ${error}`)
+    const stderr = (error as { stderr?: string }).stderr ?? ''
+    logError(`Failed to commit and push: ${error}${stderr ? `\nstderr: ${stderr}` : ''}`)
     return false
   }
 }
