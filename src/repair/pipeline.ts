@@ -478,12 +478,20 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
       recordStep(steps, 'clone-repo', stepStart, true)
     }
 
-    // Inject skills
+    // Inject skills (skip in in-place mode -- skills are already in the repo)
     const skillStep = isInPlace ? 2 : 3
-    logStep(skillStep, totalSteps, 'Injecting LLM skills...')
     let stepStart = Date.now()
-    const skillsDir = injectSkills(workDir, payload.skillsSourcePath)
-    recordStep(steps, 'inject-skills', stepStart, true)
+    let skillsDir: string
+    if (isInPlace) {
+      skillsDir = join(workDir, '.claude', 'skills')
+      logStep(skillStep, totalSteps, 'Using existing skills (in-place mode)...')
+      recordStep(steps, 'use-existing-skills', stepStart, true, skillsDir)
+    }
+    else {
+      logStep(skillStep, totalSteps, 'Injecting LLM skills...')
+      skillsDir = injectSkills(workDir, payload.skillsSourcePath)
+      recordStep(steps, 'inject-skills', stepStart, true)
+    }
 
     // Bug report via LLM
     const diagStep = isInPlace ? 3 : 4
