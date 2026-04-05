@@ -31,6 +31,10 @@ program
   .option('--run-in-production', 'Allow running in production environments')
   .option('--max-log-count <count>', 'Maximum number of run logs to keep', '50')
   .option('--verbose', 'Log prompts and engine output for debugging')
+  .option(
+    '--pr <number>',
+    'Repair an existing PR by committing fixes to its branch (skips issue/PR creation)',
+  )
   .action(async (flags: {
     error: string
     stack?: string
@@ -40,6 +44,7 @@ program
     runInProduction?: boolean
     maxLogCount: string
     verbose?: boolean
+    pr?: string
   }) => {
     try {
       logInfo('Starting self-repair in CLI mode...')
@@ -51,6 +56,7 @@ program
         issueTracker: flags.issueTracker as 'github' | 'jira',
         maxLogCount: parseInt(flags.maxLogCount, 10),
         verbose: flags.verbose ?? false,
+        pullRequestNumber: flags.pr ? parseInt(flags.pr, 10) : undefined,
         // Tokens are resolved from process.env (populated by dotenv)
         GITHUB_TOKEN: process.env.GITHUB_TOKEN,
         CLAUDE_API_TOKEN: process.env.ANTHROPIC_API_KEY ?? process.env.CLAUDE_API_KEY,
@@ -64,8 +70,14 @@ program
 
       const options = getResolvedOptions()
 
-      // In CLI mode, run the pipeline directly (no child process spawn)
-      await executeRepairPipeline({
+      // In CI mode, work in the current checkout directory instead of
+      // cloning into /tmp. This avoids corepack, permission, and git
+      // safe directory issues on hosted/custom runners.
+      const workingDirectory = process.env.CI
+        ? process.cwd()
+        : undefined
+
+      const outcome = await executeRepairPipeline({
         options,
         trigger: {
           error: flags.error,
@@ -73,7 +85,12 @@ program
           timestamp: Date.now(),
         },
         skillsSourcePath: resolveSkillsSourcePath(),
+        workingDirectory,
       })
+
+      if (outcome === 'failure') {
+        process.exit(1)
+      }
     }
     catch (error) {
       logError(`CLI error: ${error instanceof Error ? error.message : error}`)

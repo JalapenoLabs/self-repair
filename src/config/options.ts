@@ -33,6 +33,7 @@ export function setSelfRepairOptions(options: SelfRepairOptions): ResolvedOption
     maxParallelRepairs: options.maxParallelRepairs ?? DEFAULT_MAX_PARALLEL_REPAIRS,
     maxLogCount: options.maxLogCount ?? DEFAULT_MAX_LOG_COUNT,
     verbose: options.verbose ?? false,
+    pullRequestNumber: options.pullRequestNumber,
     claudeToken: tokens.claudeToken,
     openaiToken: tokens.openaiToken,
     githubToken: tokens.githubToken,
