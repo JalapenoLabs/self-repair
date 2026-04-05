@@ -4,6 +4,7 @@ dist/
 .env
 test-results/
 coverage/
+.self-repair/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

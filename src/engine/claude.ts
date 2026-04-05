@@ -1,11 +1,21 @@
 // Copyright © 2026 self-repair contributors
 
-import type { EngineContract, EngineInvokeOptions, EngineResult } from './types'
+import type { EngineContract, EngineInvokeOptions, EngineResult, EngineUsageStats } from './types'
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { ENGINE_MAX_TURNS } from '../constants'
-import { logInfo, logVerbose, logVerboseStream } from '../logger'
+import { logError, logInfo, logUsage, logVerbose, logVerboseStream, logWarning } from '../logger'
+
+/**
+ * Truncates a string for display in verbose logs.
+ */
+function truncate(text: string, maxLength = 200): string {
+  if (text.length <= maxLength) {
+    return text
+  }
+  return text.slice(0, maxLength) + '...'
+}
 
 /**
  * Creates an engine that invokes Claude Code via the official Agent SDK.
@@ -17,10 +27,16 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
     logInfo(`Invoking Claude engine in ${options.workingDirectory}`)
 
     if (options.verbose) {
-      logVerbose('Prompt sent to Claude:', options.prompt)
+      const promptLength = options.prompt.length
+      const lineCount = options.prompt.split('\n').length
+      logVerbose(
+        'Prompt sent to Claude:',
+        `${lineCount} lines, ${promptLength} chars`,
+      )
     }
 
     const outputChunks: string[] = []
+    let usageStats: EngineUsageStats = {}
 
     try {
       const session = query({
@@ -41,47 +57,101 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
       for await (const message of session) {
         // Capture assistant text output for the run log
         if (message.type === 'assistant' && typeof message.message === 'object') {
-          const textBlocks = message.message.content.filter(
-            (block: { type: string }) => block.type === 'text',
-          )
-          for (const block of textBlocks) {
-            if ('text' in block) {
+          for (const block of message.message.content) {
+            if (block.type === 'text' && 'text' in block) {
               const text = block.text as string
               outputChunks.push(text)
               if (options.verbose) {
                 logVerboseStream(text + '\n')
               }
             }
-          }
-        }
 
-        // Log tool use in verbose mode
-        if (options.verbose && message.type === 'assistant' && typeof message.message === 'object') {
-          const toolBlocks = message.message.content.filter(
-            (block: { type: string }) => block.type === 'tool_use',
-          )
-          for (const block of toolBlocks) {
-            if ('name' in block) {
-              logVerboseStream(`[tool: ${block.name}]\n`)
+            // Log tool invocations with their input in verbose mode
+            if (options.verbose && block.type === 'tool_use' && 'name' in block) {
+              const inputStr = 'input' in block
+                ? truncate(JSON.stringify(block.input))
+                : ''
+              logVerboseStream(`[tool: ${block.name}] ${inputStr}\n`)
             }
           }
         }
 
-        // Capture the final result
+        // Log tool result summaries in verbose mode
+        if (options.verbose && message.type === 'tool_use_summary') {
+          const summary = (message as { summary?: string }).summary
+          if (summary) {
+            logVerboseStream(`[tool result] ${truncate(summary, 500)}\n`)
+          }
+        }
+
+        // Capture the final result and usage stats
         if (message.type === 'result') {
-          if (message.subtype === 'success') {
-            outputChunks.push(message.result)
-            if (options.verbose) {
-              logVerbose('Claude final result:', message.result)
+          const resultMessage = message as {
+            subtype: string
+            result?: string
+            num_turns?: number
+            total_cost_usd?: number
+            terminal_reason?: string
+            usage?: {
+              input_tokens: number
+              output_tokens: number
+              cache_creation_input_tokens: number
+              cache_read_input_tokens: number
             }
+          }
+
+          // Extract usage stats (always, regardless of verbose)
+          usageStats = {
+            numTurns: resultMessage.num_turns,
+            totalCostUsd: resultMessage.total_cost_usd,
+            inputTokens: resultMessage.usage?.input_tokens,
+            outputTokens: resultMessage.usage?.output_tokens,
+            cacheReadTokens: resultMessage.usage?.cache_read_input_tokens,
+            cacheWriteTokens: resultMessage.usage?.cache_creation_input_tokens,
+          }
+
+          if (resultMessage.subtype === 'success') {
+            if (resultMessage.result) {
+              outputChunks.push(resultMessage.result)
+            }
+            if (options.verbose) {
+              logVerbose('Claude final result:', resultMessage.result ?? '')
+            }
+          }
+
+          // Detect max turns hit
+          if (
+            resultMessage.subtype === 'error_max_turns'
+            || resultMessage.terminal_reason === 'max_turns'
+          ) {
+            const turns = resultMessage.num_turns ?? ENGINE_MAX_TURNS
+            logError(
+              `Claude hit the maximum turn limit (${turns}/${ENGINE_MAX_TURNS}). `
+              + 'The agent ran out of steps before completing its task. '
+              + 'This usually means it got distracted or the task is too complex.',
+            )
+            logUsage('claude', usageStats)
+            return {
+              success: false,
+              output: `Max turns reached (${turns}/${ENGINE_MAX_TURNS}). `
+                + `Partial output:\n${outputChunks.join('\n')}`,
+              exitCode: 1,
+              usage: usageStats,
+            }
+          }
+
+          if (resultMessage.subtype.startsWith('error_')) {
+            logWarning(`Claude returned error result: ${resultMessage.subtype}`)
           }
         }
       }
 
+      logUsage('claude', usageStats)
       return {
         success: true,
         output: outputChunks.join('\n'),
         exitCode: 0,
+        usage: usageStats,
       }
     }
     catch (error) {
@@ -89,10 +159,12 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
         ? error.message
         : String(error)
 
+      logUsage('claude', usageStats)
       return {
         success: false,
         output: `Claude engine error: ${errorMessage}\n${outputChunks.join('\n')}`,
         exitCode: 1,
+        usage: usageStats,
       }
     }
   }

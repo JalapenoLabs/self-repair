@@ -5,5 +5,6 @@ export type {
   EngineContract,
   EngineInvokeOptions,
   EngineResult,
+  EngineUsageStats,
   SelfRepairEngine,
 } from '../types'

@@ -11,6 +11,13 @@ You are fixing a bug in a software repository. A structured bug report has alrea
 
 Implement the minimal, correct fix for the diagnosed bug.
 
+## Constraints
+
+- Work ONLY with the source code in this repository and the bug report provided.
+- Do NOT fetch CI logs, browse URLs, or use the `gh` CLI. You already have everything you need.
+- Do NOT investigate external services, APIs, or systems. Focus on the code.
+- Stay focused and efficient. Read the affected files, make the fix, verify it compiles.
+
 ## Process
 
 1. **Read the bug report.** Understand the root cause, affected files, and suggested fix.

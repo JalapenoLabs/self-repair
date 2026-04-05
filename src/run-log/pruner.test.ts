@@ -16,6 +16,7 @@ vi.mock('../logger', () => ({
   logError: vi.fn(),
   logSuccess: vi.fn(),
   logStep: vi.fn(),
+  logUsage: vi.fn(),
 }))
 
 let testLogsDir: string

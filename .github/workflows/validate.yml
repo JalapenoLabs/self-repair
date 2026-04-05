@@ -214,29 +214,45 @@ jobs:
       # If any validation step failed, invoke self-repair against our own
       # repo to diagnose the issue, file a bug report, and attempt a fix.
       #
-      # Uses npx tsx to run from source so self-repair works even when
+      # Uses yarn tsx to run from source so self-repair works even when
       # the build step itself fails.
       #
       # Conditions:
       #   - failed == '1': boolean flag, not a count. '1' means one or more steps failed.
+      #   - branch guard: only fires on main/develop (push) or PRs targeting main/develop.
+      #     github.base_ref is set for PRs (target branch), github.ref_name for pushes.
       #   - branch not self-repair/*: prevents infinite loops where a self-repair PR
       #     triggers CI, fails, and invokes self-repair again endlessly.
+      #
+      # On PRs: passes --pr <number> so the fix is committed directly to the PR branch.
+      # On pushes: creates a new issue + new PR (standard mode).
+      #
+      # Before invoking the agent, fetch-failed-logs.ts deterministically
+      # retrieves the actual error output from the GitHub Actions API.
+      # This runs as a script (not the LLM agent), using only native fetch
+      # and GITHUB_TOKEN -- no gh CLI dependency.
 
       - name: Self-repair
         if: >-
           always()
-          && (github.base_ref == 'main' || github.base_ref == 'develop')
           && steps.summary.outputs.failed == '1'
           && !startsWith(github.head_ref || github.ref_name, 'self-repair/')
+          && (
+            github.base_ref == 'main'
+            || github.base_ref == 'develop'
+            || github.ref_name == 'main'
+            || github.ref_name == 'develop'
+          )
 
         timeout-minutes: 15
 
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.JL_FINE_GRAINED_GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           BRANCH: "${{ github.head_ref || github.ref_name }}"
           SHA: "${{ github.sha }}"
-          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           FAILURES: "${{ steps.summary.outputs.failures }}"
 
         run: |
@@ -249,15 +265,52 @@ jobs:
             echo "Using existing node_modules from primary install."
           fi
 
-          ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}See: ${RUN_URL}"
+          # Fetch the actual error output from failed CI steps via GitHub API.
+          # This runs deterministically before the agent -- no LLM turns wasted.
+          #
+          # The --steps flag passes raw step outcomes from the workflow context
+          # (before continue-on-error is applied). This is necessary because the
+          # REST API only exposes `conclusion` which is always 'success' for steps
+          # with continue-on-error: true.
+          echo -e "\033[35m[self-repair] Fetching failed step logs from GitHub API...\033[0m"
+          STEP_OUTCOMES="Install dependencies:${{ steps.install.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Lint:${{ steps.lint.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Typecheck:${{ steps.typecheck.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Unit Tests:${{ steps.tests.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Build:${{ steps.build.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},Smoke tests:${{ steps.smoke.outcome }}"
+          STEP_OUTCOMES="${STEP_OUTCOMES},End-to-end test:${{ steps.e2e.outcome }}"
+          STACK=$(yarn tsx src/ci/fetch-failed-logs.ts --steps "${STEP_OUTCOMES}" 2>&1 || echo "")
+
+          # If the log fetcher returned nothing useful, try to reproduce the
+          # failing install step's output directly (most common failure mode).
+          if [ -z "$(echo "$STACK" | grep -v '^\[self-repair\]' | xargs)" ]; then
+            echo -e "\033[35m[self-repair] Log fetcher returned no output, reproducing install failure...\033[0m"
+            STACK=$(yarn install --immutable 2>&1 || true)
+          fi
+
+          ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}"
 
           echo ""
           echo -e "\033[35m[self-repair] Initiating self-repair for CI failure...\033[0m"
           echo -e "\033[35m[self-repair] Error: ${ERROR_MESSAGE}\033[0m"
+          if [ -n "$STACK" ]; then
+            echo -e "\033[35m[self-repair] Error context captured ($(echo "$STACK" | wc -l) lines)\033[0m"
+          fi
           echo ""
 
-          npx tsx src/cli.ts \
+          # On PRs: commit fix directly to the PR branch via --pr
+          # On pushes: create a new issue + PR (standard mode)
+          PR_FLAG=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_FLAG="--pr ${{ github.event.pull_request.number }}"
+            echo -e "\033[35m[self-repair] PR mode: fixing PR #${{ github.event.pull_request.number }} in-place\033[0m"
+          fi
+
+          yarn tsx src/cli.ts \
             --error "${ERROR_MESSAGE}" \
+            --stack "${STACK}" \
             --engine claude \
             --repo "${{ github.repository }}" \
-            --verbose
+            --verbose \
+            $PR_FLAG
