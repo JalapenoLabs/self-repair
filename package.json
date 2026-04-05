@@ -40,7 +40,9 @@
     "url": "https://github.com/JalapenoLabs/self-repair/issues"
   },
   "homepage": "https://github.com/JalapenoLabs/self-repair#readme",
-  "bin": "dist/cli.js",
+  "bin": {
+    "self-repair": "dist/cli.js"
+  },
   "files": [
     "dist",
     ".claude"

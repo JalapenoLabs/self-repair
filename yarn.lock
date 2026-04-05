@@ -3877,7 +3877,7 @@ __metadata:
     typescript-eslint: "npm:^8.58.0"
     vitest: "npm:^3.0.0"
   bin:
-    self-repair: dist/cli.js
+    self-repair: ./dist/cli.js
   languageName: unknown
   linkType: soft
 
