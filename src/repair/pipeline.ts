@@ -507,16 +507,13 @@ async function executePrRepairPipeline(
   if (payload.options.githubToken && payload.options.repo) {
     try {
       const commentBody = [
-        `## Self-Repair Fix`,
+        `**Self-Repair:** ${bugReport.title} (\`${bugReport.severity}\`)`,
         '',
-        `**Bug:** ${bugReport.title}`,
-        `**Severity:** \`${bugReport.severity}\``,
+        `Fixed ${bugReport.affectedFiles.length} file(s): `
+        + bugReport.affectedFiles.map((f) => `\`${f}\``).join(', ')
+        + '.',
         '',
-        `### Changes`,
-        repairResult.output.slice(0, 2000),
-        '',
-        '---',
-        '*Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*',
+        `*Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*`,
       ].join('\n')
 
       await commentOnPullRequest(
