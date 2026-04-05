@@ -1,10 +1,10 @@
 // Copyright © 2026 self-repair contributors
 
-import type { EngineContract, EngineInvokeOptions, EngineResult } from './types'
+import type { EngineContract, EngineInvokeOptions, EngineResult, EngineUsageStats } from './types'
 
 import { Codex } from '@openai/codex-sdk'
 
-import { logInfo, logVerbose, logVerboseStream } from '../logger'
+import { logInfo, logUsage, logVerbose, logVerboseStream } from '../logger'
 
 /**
  * Creates an engine that invokes OpenAI Codex via the official SDK.
@@ -39,6 +39,7 @@ export function createCodexEngine(apiToken?: string): EngineContract {
       if (options.verbose) {
         const { events } = await thread.runStreamed(options.prompt)
         const outputChunks: string[] = []
+        let usageStats: EngineUsageStats = {}
 
         for await (const event of events) {
           if (event.type === 'item.completed' && 'item' in event) {
@@ -49,31 +50,47 @@ export function createCodexEngine(apiToken?: string): EngineContract {
             }
           }
           else if (event.type === 'turn.completed' && 'usage' in event) {
-            if (options.verbose) {
-              logVerbose('Codex turn completed', JSON.stringify(event.usage, null, 2))
+            const turnUsage = event.usage as {
+              input_tokens: number
+              cached_input_tokens: number
+              output_tokens: number
+            } | null
+            if (turnUsage) {
+              usageStats = {
+                inputTokens: turnUsage.input_tokens,
+                outputTokens: turnUsage.output_tokens,
+                cacheReadTokens: turnUsage.cached_input_tokens,
+              }
             }
           }
         }
 
         const finalOutput = outputChunks.join('\n')
-        if (options.verbose) {
-          logVerbose('Codex final output:', finalOutput)
-        }
-
+        logUsage('codex', usageStats)
         return {
           success: true,
           output: finalOutput,
           exitCode: 0,
+          usage: usageStats,
         }
       }
 
       // Non-verbose: use simple run()
       const result = await thread.run(options.prompt)
+      const usageStats: EngineUsageStats = result.usage
+        ? {
+          inputTokens: result.usage.input_tokens,
+          outputTokens: result.usage.output_tokens,
+          cacheReadTokens: result.usage.cached_input_tokens,
+        }
+        : {}
 
+      logUsage('codex', usageStats)
       return {
         success: true,
         output: result.finalResponse,
         exitCode: 0,
+        usage: usageStats,
       }
     }
     catch (error) {

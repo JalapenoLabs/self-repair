@@ -118,10 +118,20 @@ export type BugReport = {
 
 // ─── Engine Contract ────────────────────────────────────────────────────────
 
+export type EngineUsageStats = {
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  totalCostUsd?: number
+  numTurns?: number
+}
+
 export type EngineResult = {
   success: boolean
   output: string
   exitCode: number
+  usage?: EngineUsageStats
 }
 
 export type EngineInvokeOptions = {
@@ -170,6 +180,17 @@ export type ChildWorkerPayload = {
   options: ResolvedOptions
   trigger: RepairTrigger
   skillsSourcePath: string
+
+  /**
+   * When set, the pipeline works in this directory instead of cloning
+   * into a temp folder. Used in CI mode (process.env.CI) to avoid
+   * corepack issues, permission errors, and git safe directory problems
+   * that arise from cloning into /tmp on hosted runners.
+   *
+   * In this mode, the pipeline resets the branch to its original state
+   * after repair so subsequent CI steps aren't affected.
+   */
+  workingDirectory?: string
 }
 
 // ─── Make-PR Skill Output ───────────────────────────────────────────────────

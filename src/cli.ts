@@ -70,7 +70,13 @@ program
 
       const options = getResolvedOptions()
 
-      // In CLI mode, run the pipeline directly (no child process spawn)
+      // In CI mode, work in the current checkout directory instead of
+      // cloning into /tmp. This avoids corepack, permission, and git
+      // safe directory issues on hosted/custom runners.
+      const workingDirectory = process.env.CI
+        ? process.cwd()
+        : undefined
+
       const outcome = await executeRepairPipeline({
         options,
         trigger: {
@@ -79,6 +85,7 @@ program
           timestamp: Date.now(),
         },
         skillsSourcePath: resolveSkillsSourcePath(),
+        workingDirectory,
       })
 
       if (outcome === 'failure') {

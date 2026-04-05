@@ -1,11 +1,11 @@
 // Copyright © 2026 self-repair contributors
 
-import type { EngineContract, EngineInvokeOptions, EngineResult } from './types'
+import type { EngineContract, EngineInvokeOptions, EngineResult, EngineUsageStats } from './types'
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 import { ENGINE_MAX_TURNS } from '../constants'
-import { logError, logInfo, logVerbose, logVerboseStream, logWarning } from '../logger'
+import { logError, logInfo, logUsage, logVerbose, logVerboseStream, logWarning } from '../logger'
 
 /**
  * Truncates a string for display in verbose logs.
@@ -36,6 +36,7 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
     }
 
     const outputChunks: string[] = []
+    let usageStats: EngineUsageStats = {}
 
     try {
       const session = query({
@@ -75,8 +76,7 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
           }
         }
 
-        // Log tool result summaries in verbose mode.
-        // These are the "what did the tool actually do" messages from the SDK.
+        // Log tool result summaries in verbose mode
         if (options.verbose && message.type === 'tool_use_summary') {
           const summary = (message as { summary?: string }).summary
           if (summary) {
@@ -84,13 +84,30 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
           }
         }
 
-        // Capture the final result
+        // Capture the final result and usage stats
         if (message.type === 'result') {
           const resultMessage = message as {
             subtype: string
             result?: string
             num_turns?: number
+            total_cost_usd?: number
             terminal_reason?: string
+            usage?: {
+              input_tokens: number
+              output_tokens: number
+              cache_creation_input_tokens: number
+              cache_read_input_tokens: number
+            }
+          }
+
+          // Extract usage stats (always, regardless of verbose)
+          usageStats = {
+            numTurns: resultMessage.num_turns,
+            totalCostUsd: resultMessage.total_cost_usd,
+            inputTokens: resultMessage.usage?.input_tokens,
+            outputTokens: resultMessage.usage?.output_tokens,
+            cacheReadTokens: resultMessage.usage?.cache_read_input_tokens,
+            cacheWriteTokens: resultMessage.usage?.cache_creation_input_tokens,
           }
 
           if (resultMessage.subtype === 'success') {
@@ -102,7 +119,7 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
             }
           }
 
-          // Detect max turns hit -- this is a failure, not a success
+          // Detect max turns hit
           if (
             resultMessage.subtype === 'error_max_turns'
             || resultMessage.terminal_reason === 'max_turns'
@@ -113,25 +130,28 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
               + 'The agent ran out of steps before completing its task. '
               + 'This usually means it got distracted or the task is too complex.',
             )
+            logUsage('claude', usageStats)
             return {
               success: false,
               output: `Max turns reached (${turns}/${ENGINE_MAX_TURNS}). `
                 + `Partial output:\n${outputChunks.join('\n')}`,
               exitCode: 1,
+              usage: usageStats,
             }
           }
 
-          // Log other error subtypes
           if (resultMessage.subtype.startsWith('error_')) {
             logWarning(`Claude returned error result: ${resultMessage.subtype}`)
           }
         }
       }
 
+      logUsage('claude', usageStats)
       return {
         success: true,
         output: outputChunks.join('\n'),
         exitCode: 0,
+        usage: usageStats,
       }
     }
     catch (error) {
@@ -139,10 +159,12 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
         ? error.message
         : String(error)
 
+      logUsage('claude', usageStats)
       return {
         success: false,
         output: `Claude engine error: ${errorMessage}\n${outputChunks.join('\n')}`,
         exitCode: 1,
+        usage: usageStats,
       }
     }
   }

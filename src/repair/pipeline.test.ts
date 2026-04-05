@@ -23,6 +23,7 @@ vi.mock('../logger', () => ({
   logError: vi.fn(),
   logSuccess: vi.fn(),
   logStep: vi.fn(),
+  logUsage: vi.fn(),
 }))
 
 vi.mock('tmp-promise', () => ({ dir: vi.fn() }))

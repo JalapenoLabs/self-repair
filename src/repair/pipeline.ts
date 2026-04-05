@@ -20,7 +20,7 @@ import { createEngine } from '../engine/factory'
 import { checkoutPrBranch } from '../git/checkout-pr'
 import { cloneRepository } from '../git/clone'
 import { createIssueTracker } from '../issue-tracker/factory'
-import { logError, logStep, logSuccess } from '../logger'
+import { logError, logStep, logSuccess, logUsage } from '../logger'
 import { commentOnPullRequest } from '../pull-request/comment'
 import { createGitHubPullRequest } from '../pull-request/github'
 import { pruneRunLogs } from '../run-log/pruner'
@@ -51,8 +51,6 @@ function readSkillContent(skillsDir: string, skillName: string): string {
 
 /**
  * Builds the prompt sent to the LLM engine for a given skill invocation.
- * Combines the skill instructions with the error context and any
- * user-provided pre-prompt content.
  */
 function buildPrompt(
   payload: ChildWorkerPayload,
@@ -89,11 +87,8 @@ function buildPrompt(
 
 /**
  * Attempts to parse structured JSON from the engine output.
- * The engine may include markdown fences or other wrapping text;
- * this extracts the first valid JSON block.
  */
 function parseJsonFromOutput<Shape>(output: string): Shape | null {
-  // Try to extract JSON from markdown code fences first
   const fenceMatch = output.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
   if (fenceMatch?.[1]) {
     try {
@@ -104,7 +99,6 @@ function parseJsonFromOutput<Shape>(output: string): Shape | null {
     }
   }
 
-  // Try parsing the entire output as JSON
   try {
     return JSON.parse(output) as Shape
   }
@@ -127,20 +121,18 @@ function recordStep(
     name,
     status: success ? 'success' : 'failure',
     durationMs: Date.now() - startTime,
-    output: output?.slice(0, 5000), // Truncate large outputs
+    output: output?.slice(0, 5000),
   })
 }
 
 /**
- * Commits and pushes all changes in the working directory to the current branch.
- * Used in PR repair mode where the LLM has already made changes.
+ * Commits and pushes all changes in the working directory.
  */
 async function commitAndPush(
   repoDir: string,
   commitMessage: string,
 ): Promise<boolean> {
   try {
-    // Check if there are any changes to commit
     const { stdout: status } = await execFileAsync(
       'git', [ 'status', '--porcelain' ],
       { cwd: repoDir },
@@ -166,11 +158,29 @@ async function commitAndPush(
   }
 }
 
-// ─── Standard Pipeline (new issue + new PR) ─────────────────────────────────
+/**
+ * Saves the current HEAD sha so we can reset to it after in-place repair.
+ */
+async function saveHeadRef(repoDir: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    'git', [ 'rev-parse', 'HEAD' ],
+    { cwd: repoDir },
+  )
+  return stdout.trim()
+}
 
 /**
- * The standard repair pipeline: diagnose, file issue, attempt repair, open PR.
+ * Resets the working directory to the given ref, cleaning up any
+ * changes made during in-place repair. Used in CI mode so subsequent
+ * steps see the original state.
  */
+async function resetToRef(repoDir: string, ref: string): Promise<void> {
+  await execFileAsync('git', [ 'reset', '--hard', ref ], { cwd: repoDir })
+  await execFileAsync('git', [ 'clean', '-fd' ], { cwd: repoDir })
+}
+
+// ─── Standard Pipeline (new issue + new PR) ─────────────────────────────────
+
 async function executeStandardPipeline(
   payload: ChildWorkerPayload,
   engine: ReturnType<typeof createEngine>,
@@ -181,7 +191,6 @@ async function executeStandardPipeline(
   steps: RunLogStep[],
   runLog: RunLog,
 ): Promise<void> {
-  // Check for existing issue
   logStep(5, TOTAL_STEPS_STANDARD, 'Checking for existing issues...')
   let stepStart = Date.now()
   const issueTracker = createIssueTracker(payload.options)
@@ -198,7 +207,6 @@ async function executeStandardPipeline(
     recordStep(steps, 'create-issue', stepStart, true, `Created: ${newIssue.url}`)
   }
 
-  // Assess complexity
   logStep(6, TOTAL_STEPS_STANDARD, 'Assessing complexity...')
   stepStart = Date.now()
 
@@ -214,7 +222,6 @@ async function executeStandardPipeline(
 
   recordStep(steps, 'complexity-check', stepStart, true, 'simple -- attempting repair')
 
-  // Attempt repair
   logStep(7, TOTAL_STEPS_STANDARD, 'Attempting automated repair...')
   stepStart = Date.now()
   const repairSkill = readSkillContent(skillsDir, 'repair')
@@ -235,7 +242,6 @@ async function executeStandardPipeline(
 
   recordStep(steps, 'repair', stepStart, true, repairResult.output)
 
-  // Create PR via make-pr skill
   stepStart = Date.now()
   const makePrSkill = readSkillContent(skillsDir, 'make-pr')
   const prContext = [
@@ -293,45 +299,55 @@ async function executeStandardPipeline(
 
 // ─── PR Repair Pipeline (commit to existing PR) ─────────────────────────────
 
-/**
- * PR repair mode: diagnose, repair, commit directly to the PR's branch.
- * Skips issue creation and new PR creation entirely.
- */
 async function executePrRepairPipeline(
   payload: ChildWorkerPayload,
   engine: ReturnType<typeof createEngine>,
-  cloneTarget: string,
+  workDir: string,
   skillsDir: string,
   bugReport: BugReport,
   steps: RunLogStep[],
   runLog: RunLog,
+  isInPlace: boolean,
 ): Promise<void> {
   const prNumber = payload.options.pullRequestNumber!
 
-  // Checkout the PR's source branch
-  logStep(5, TOTAL_STEPS_PR_MODE, `Checking out PR #${prNumber} branch...`)
-  let stepStart = Date.now()
-
-  if (!payload.options.githubToken || !payload.options.repo) {
-    throw new Error('self-repair: githubToken and repo are required for PR repair mode.')
+  // In clone mode, we need to checkout the PR branch.
+  // In in-place mode, we're already on the PR branch.
+  let branchName: string
+  if (isInPlace) {
+    const { stdout } = await execFileAsync(
+      'git', [ 'rev-parse', '--abbrev-ref', 'HEAD' ],
+      { cwd: workDir },
+    )
+    branchName = stdout.trim()
+    logStep(5, TOTAL_STEPS_PR_MODE, `Working in-place on branch: ${branchName}`)
+    recordStep(steps, 'in-place-branch', Date.now(), true, branchName)
   }
+  else {
+    logStep(5, TOTAL_STEPS_PR_MODE, `Checking out PR #${prNumber} branch...`)
+    const stepStart = Date.now()
 
-  const branchName = await checkoutPrBranch(
-    cloneTarget,
-    prNumber,
-    payload.options.githubToken,
-    payload.options.repo,
-  )
-  recordStep(steps, 'checkout-pr-branch', stepStart, true, branchName)
+    if (!payload.options.githubToken || !payload.options.repo) {
+      throw new Error('self-repair: githubToken and repo are required for PR repair mode.')
+    }
+
+    branchName = await checkoutPrBranch(
+      workDir,
+      prNumber,
+      payload.options.githubToken,
+      payload.options.repo,
+    )
+    recordStep(steps, 'checkout-pr-branch', stepStart, true, branchName)
+  }
 
   // Attempt repair
   logStep(6, TOTAL_STEPS_PR_MODE, 'Attempting automated repair...')
-  stepStart = Date.now()
+  const stepStart = Date.now()
   const repairSkill = readSkillContent(skillsDir, 'repair')
   const repairContext = `## Bug Report\n\`\`\`json\n${JSON.stringify(bugReport, null, 2)}\n\`\`\``
   const repairPrompt = buildPrompt(payload, repairSkill, repairContext)
   const repairResult = await engine.invoke({
-    workingDirectory: cloneTarget,
+    workingDirectory: workDir,
     prompt: repairPrompt,
     verbose: payload.options.verbose,
   })
@@ -345,44 +361,45 @@ async function executePrRepairPipeline(
 
   recordStep(steps, 'repair', stepStart, true, repairResult.output)
 
-  // Commit and push directly to the PR branch
-  stepStart = Date.now()
+  // Commit and push
+  const pushStart = Date.now()
   const commitMessage = `fix: ${bugReport.title} (self-repair)`
-  const pushed = await commitAndPush(cloneTarget, commitMessage)
+  const pushed = await commitAndPush(workDir, commitMessage)
 
   if (!pushed) {
-    recordStep(steps, 'commit-to-pr', stepStart, false, 'No changes or push failed')
+    recordStep(steps, 'commit-to-pr', pushStart, false, 'No changes or push failed')
     runLog.outcome = 'partial'
     return
   }
 
-  recordStep(steps, 'commit-to-pr', stepStart, true, `Pushed to ${branchName}`)
+  recordStep(steps, 'commit-to-pr', pushStart, true, `Pushed to ${branchName}`)
 
-  // Post a comment on the PR summarizing the fix
-  try {
-    const commentBody = [
-      `## Self-Repair Fix`,
-      '',
-      `**Bug:** ${bugReport.title}`,
-      `**Severity:** \`${bugReport.severity}\``,
-      '',
-      `### Changes`,
-      repairResult.output.slice(0, 2000),
-      '',
-      '---',
-      '*Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*',
-    ].join('\n')
+  // Post a comment on the PR
+  if (payload.options.githubToken && payload.options.repo) {
+    try {
+      const commentBody = [
+        `## Self-Repair Fix`,
+        '',
+        `**Bug:** ${bugReport.title}`,
+        `**Severity:** \`${bugReport.severity}\``,
+        '',
+        `### Changes`,
+        repairResult.output.slice(0, 2000),
+        '',
+        '---',
+        '*Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*',
+      ].join('\n')
 
-    await commentOnPullRequest(
-      payload.options.githubToken,
-      payload.options.repo,
-      prNumber,
-      commentBody,
-    )
-  }
-  catch (commentError) {
-    // Commenting is best-effort, don't fail the pipeline
-    logError(`Failed to post PR comment: ${commentError}`)
+      await commentOnPullRequest(
+        payload.options.githubToken,
+        payload.options.repo,
+        prNumber,
+        commentBody,
+      )
+    }
+    catch (commentError) {
+      logError(`Failed to post PR comment: ${commentError}`)
+    }
   }
 
   runLog.pullRequestUrl = `https://github.com/${payload.options.repo}/pull/${prNumber}`
@@ -393,14 +410,13 @@ async function executePrRepairPipeline(
 // ─── Main Entry Point ───────────────────────────────────────────────────────
 
 /**
- * The core repair pipeline. This is the heart of self-repair: it clones the
- * repo, invokes the LLM to diagnose the bug, and either files an issue + opens
- * a PR (standard mode) or commits directly to an existing PR (PR repair mode).
- *
- * Shared between the child-worker process (library mode) and the CLI (direct mode).
+ * The core repair pipeline. Clones the repo (or works in-place in CI),
+ * invokes the LLM to diagnose the bug, and either files an issue + opens
+ * a PR (standard mode) or commits directly to an existing PR (PR mode).
  */
 export async function executeRepairPipeline(payload: ChildWorkerPayload): Promise<RunLog['outcome']> {
   const isPrMode = typeof payload.options.pullRequestNumber === 'number'
+  const isInPlace = !!payload.workingDirectory
   const totalSteps = isPrMode
     ? TOTAL_STEPS_PR_MODE
     : TOTAL_STEPS_STANDARD
@@ -420,50 +436,71 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
   if (isPrMode) {
     logStep(0, totalSteps, `PR repair mode: fixing PR #${payload.options.pullRequestNumber}`)
   }
+  if (isInPlace) {
+    logStep(0, totalSteps, `In-place mode: working in ${payload.workingDirectory}`)
+  }
 
   let tmpDirPath: string | null = null
   let cleanupTmpDir: (() => Promise<void>) | null = null
+  let originalHeadRef: string | null = null
 
   try {
-    // Step 1: Create temp directory
-    logStep(1, totalSteps, 'Creating temporary workspace...')
-    let stepStart = Date.now()
-    const tmpResult = await createTmpDir({
-      prefix: 'self-repair-',
-      tmpdir: tmpdir(),
-      unsafeCleanup: true,
-    })
-    tmpDirPath = tmpResult.path
-    cleanupTmpDir = tmpResult.cleanup
-    const cloneTarget = join(tmpDirPath, 'repo')
-    recordStep(steps, 'create-temp-dir', stepStart, true)
+    let workDir: string
 
-    // Step 2: Clone repo
-    logStep(2, totalSteps, `Cloning ${payload.options.repo ?? 'repository'}...`)
-    stepStart = Date.now()
-    if (!payload.options.repo) {
-      throw new Error('self-repair: repo is required to clone the repository.')
+    if (isInPlace) {
+      // CI mode: work directly in the provided directory.
+      // Save HEAD so we can reset after repair.
+      workDir = payload.workingDirectory!
+      originalHeadRef = await saveHeadRef(workDir)
+      logStep(1, totalSteps, 'Using current checkout (CI mode)...')
+      recordStep(steps, 'use-checkout', Date.now(), true, workDir)
     }
-    await cloneRepository(payload.options.repo, cloneTarget, payload.options.githubToken)
-    recordStep(steps, 'clone-repo', stepStart, true)
+    else {
+      // Standard mode: clone into a temp directory.
+      logStep(1, totalSteps, 'Creating temporary workspace...')
+      let stepStart = Date.now()
+      const tmpResult = await createTmpDir({
+        prefix: 'self-repair-',
+        tmpdir: tmpdir(),
+        unsafeCleanup: true,
+      })
+      tmpDirPath = tmpResult.path
+      cleanupTmpDir = tmpResult.cleanup
+      workDir = join(tmpDirPath, 'repo')
+      recordStep(steps, 'create-temp-dir', stepStart, true)
 
-    // Step 3: Inject skills
-    logStep(3, totalSteps, 'Injecting LLM skills...')
-    stepStart = Date.now()
-    const skillsDir = injectSkills(cloneTarget, payload.skillsSourcePath)
+      logStep(2, totalSteps, `Cloning ${payload.options.repo ?? 'repository'}...`)
+      stepStart = Date.now()
+      if (!payload.options.repo) {
+        throw new Error('self-repair: repo is required to clone the repository.')
+      }
+      await cloneRepository(payload.options.repo, workDir, payload.options.githubToken)
+      recordStep(steps, 'clone-repo', stepStart, true)
+    }
+
+    // Inject skills
+    const skillStep = isInPlace ? 2 : 3
+    logStep(skillStep, totalSteps, 'Injecting LLM skills...')
+    let stepStart = Date.now()
+    const skillsDir = injectSkills(workDir, payload.skillsSourcePath)
     recordStep(steps, 'inject-skills', stepStart, true)
 
-    // Step 4: Bug report via LLM
-    logStep(4, totalSteps, `Running bug analysis with ${payload.options.engine}...`)
+    // Bug report via LLM
+    const diagStep = isInPlace ? 3 : 4
+    logStep(diagStep, totalSteps, `Running bug analysis with ${payload.options.engine}...`)
     stepStart = Date.now()
     const engine = createEngine(payload.options)
     const bugReportSkill = readSkillContent(skillsDir, 'bug-report')
     const bugReportPrompt = buildPrompt(payload, bugReportSkill)
     const bugReportResult = await engine.invoke({
-      workingDirectory: cloneTarget,
+      workingDirectory: workDir,
       prompt: bugReportPrompt,
       verbose: payload.options.verbose,
     })
+
+    if (bugReportResult.usage) {
+      logUsage('bug-report', bugReportResult.usage)
+    }
 
     if (!bugReportResult.success) {
       recordStep(steps, 'bug-report', stepStart, false, bugReportResult.output)
@@ -483,12 +520,12 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     // Branch into standard or PR repair mode
     if (isPrMode) {
       await executePrRepairPipeline(
-        payload, engine, cloneTarget, skillsDir, bugReport, steps, runLog,
+        payload, engine, workDir, skillsDir, bugReport, steps, runLog, isInPlace,
       )
     }
     else {
       await executeStandardPipeline(
-        payload, engine, cloneTarget, skillsDir, bugReport, errorHash, steps, runLog,
+        payload, engine, workDir, skillsDir, bugReport, errorHash, steps, runLog,
       )
     }
 
@@ -503,6 +540,19 @@ export async function executeRepairPipeline(payload: ChildWorkerPayload): Promis
     writeRunLog(runLog)
     pruneRunLogs(payload.options.maxLogCount)
 
+    // In-place mode: reset the working directory to its original state
+    // so subsequent CI steps see the original checkout.
+    if (isInPlace && originalHeadRef && payload.workingDirectory) {
+      try {
+        await resetToRef(payload.workingDirectory, originalHeadRef)
+        logSuccess('Reset working directory to original state.')
+      }
+      catch (resetError) {
+        logError(`Failed to reset working directory: ${resetError}`)
+      }
+    }
+
+    // Clone mode: clean up temp directory
     if (cleanupTmpDir) {
       try {
         await cleanupTmpDir()
