@@ -20,7 +20,7 @@ import { createEngine } from '../engine/factory'
 import { checkoutPrBranch } from '../git/checkout-pr'
 import { cloneRepository } from '../git/clone'
 import { createIssueTracker } from '../issue-tracker/factory'
-import { logError, logStep, logSuccess, logUsage } from '../logger'
+import { logError, logStep, logSuccess, logUsage, logWarning } from '../logger'
 import { commentOnPullRequest } from '../pull-request/comment'
 import { createGitHubPullRequest } from '../pull-request/github'
 import { pruneRunLogs } from '../run-log/pruner'
@@ -127,35 +127,48 @@ function recordStep(
 
 /**
  * Commits and pushes all changes in the working directory.
+ * Returns null on success, or an error description string on failure
+ * so the caller can hand it to the agent for diagnosis.
  */
 async function commitAndPush(
   repoDir: string,
   commitMessage: string,
-): Promise<boolean> {
+): Promise<string | null> {
   try {
     const { stdout: status } = await execFileAsync(
       'git', [ 'status', '--porcelain' ],
       { cwd: repoDir },
     )
     if (!status.trim()) {
-      logError('No changes to commit after repair.')
-      return false
+      return 'No changes detected in the working directory after repair.'
     }
+
+    // Write commit message to a file to avoid shell interpretation
+    // issues with special characters (e.g. --flags in the message).
+    const { writeFileSync, unlinkSync } = await import('node:fs')
+    const msgFile = join(repoDir, '.self-repair-commit-msg')
+    writeFileSync(msgFile, commitMessage, 'utf-8')
 
     await execFileAsync('git', [ 'add', '-A' ], { cwd: repoDir })
     await execFileAsync(
       'git',
-      [ 'commit', '-m', commitMessage ],
+      [ 'commit', '--file', msgFile ],
       { cwd: repoDir },
     )
+
+    try {
+ unlinkSync(msgFile)
+}
+    catch {/* best-effort cleanup */}
+
     await execFileAsync('git', [ 'push' ], { cwd: repoDir })
-    logSuccess('Changes committed and pushed to PR branch.')
-    return true
+    logSuccess('Changes committed and pushed.')
+    return null
   }
   catch (error) {
     const stderr = (error as { stderr?: string }).stderr ?? ''
-    logError(`Failed to commit and push: ${error}${stderr ? `\nstderr: ${stderr}` : ''}`)
-    return false
+    const message = error instanceof Error ? error.message : String(error)
+    return `${message}${stderr ? `\nstderr: ${stderr}` : ''}`
   }
 }
 
@@ -362,18 +375,49 @@ async function executePrRepairPipeline(
 
   recordStep(steps, 'repair', stepStart, true, repairResult.output)
 
-  // Commit and push
+  // Try deterministic commit+push first (fast, handles most cases).
+  // If it fails, hand the error to the agent so it can diagnose and retry.
   const pushStart = Date.now()
-  const commitMessage = `fix: ${bugReport.title} (self-repair)`
-  const pushed = await commitAndPush(workDir, commitMessage)
+  const commitMessage = `Self repair: ${bugReport.title}`
+  const commitError = await commitAndPush(workDir, commitMessage)
 
-  if (!pushed) {
-    recordStep(steps, 'commit-to-pr', pushStart, false, 'No changes or push failed')
-    runLog.outcome = 'partial'
-    return
+  if (commitError === null) {
+    recordStep(steps, 'commit-to-pr', pushStart, true, `Pushed to ${branchName}`)
   }
+  else {
+    logWarning(`Deterministic commit failed: ${commitError}. Handing off to agent...`)
 
-  recordStep(steps, 'commit-to-pr', pushStart, true, `Pushed to ${branchName}`)
+    const commitFixPrompt = [
+      '# Commit and Push',
+      '',
+      'Your code changes are applied but the automated commit+push failed.',
+      `The error was: ${commitError}`,
+      '',
+      'Please diagnose the issue, fix it, then stage, commit, and push your changes.',
+      `Use this commit message: ${commitMessage}`,
+      `You are on branch: ${branchName}`,
+      '',
+      '## Constraints',
+      '- Do NOT use the `gh` CLI.',
+      '- Do NOT fetch CI logs or browse URLs.',
+      '- Just diagnose the git issue, fix it, commit, and push.',
+    ].join('\n')
+
+    const commitFixResult = await engine.invoke({
+      workingDirectory: workDir,
+      prompt: commitFixPrompt,
+      verbose: payload.options.verbose,
+    })
+
+    if (!commitFixResult.success) {
+      recordStep(steps, 'commit-to-pr', pushStart, false, commitFixResult.output)
+      logError(`Agent could not commit+push for PR #${prNumber}.`)
+      runLog.outcome = 'partial'
+      return
+    }
+
+    recordStep(steps, 'commit-to-pr', pushStart, true, `Agent pushed to ${branchName}`)
+  }
 
   // Post a comment on the PR
   if (payload.options.githubToken && payload.options.repo) {
