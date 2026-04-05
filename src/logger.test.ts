@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { logError, logInfo, logStep, logSuccess, logWarning } from './logger'
+import { logError, logInfo, logStep, logSuccess, logVerbose, logVerboseStream, logWarning } from './logger'
 
 describe('logger', () => {
   afterEach(() => {
@@ -45,5 +45,27 @@ describe('logger', () => {
     const output = spy.mock.calls[0]?.[0] as string
     expect(output).toContain('3/7')
     expect(output).toContain('Cloning repository...')
+  })
+})
+
+describe('verbose logging redaction', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('logVerbose redacts tokens in content', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    logVerbose('test label', 'token: sk-ant-api03-abcdefghij1234567890')
+    const contentCall = spy.mock.calls[1]?.[0] as string
+    expect(contentCall).toContain('[REDACTED]')
+    expect(contentCall).not.toContain('sk-ant')
+  })
+
+  it('logVerboseStream redacts tokens in content', () => {
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    logVerboseStream('key: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345')
+    const output = spy.mock.calls[0]?.[0] as string
+    expect(output).toContain('[REDACTED]')
+    expect(output).not.toContain('ghp_')
   })
 })
