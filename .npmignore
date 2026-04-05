@@ -1,0 +1,14 @@
+# Deny everything by default, then allowlist what we publish.
+# This complements the "files" array in package.json as a second
+# layer of defence against accidentally shipping sensitive or
+# unnecessary content to the npm registry.
+
+# ─── Deny all ────────────────────────────────────────────────────────────────
+*
+
+# ─── Allowlist published assets ──────────────────────────────────────────────
+!dist/**
+!.claude/**
+!package.json
+!LICENSE
+!README.md
