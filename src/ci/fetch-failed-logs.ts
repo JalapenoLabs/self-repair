@@ -188,7 +188,10 @@ function extractStepLogs(
  * Main entry point. Fetches failed step logs and writes them to stdout.
  */
 async function main(): Promise<void> {
-  const token = process.env.GITHUB_TOKEN
+  // Prefer GITHUB_ACTIONS_TOKEN (the built-in actions token that always has
+  // Actions: Read) for downloading logs. Fall back to GITHUB_TOKEN when
+  // GITHUB_ACTIONS_TOKEN is not available (e.g. running locally).
+  const token = process.env.GITHUB_ACTIONS_TOKEN || process.env.GITHUB_TOKEN
   const repo = process.env.GITHUB_REPOSITORY
   const runId = process.env.GITHUB_RUN_ID
 
