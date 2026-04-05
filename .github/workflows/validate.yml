@@ -280,7 +280,14 @@ jobs:
           STEP_OUTCOMES="${STEP_OUTCOMES},Build:${{ steps.build.outcome }}"
           STEP_OUTCOMES="${STEP_OUTCOMES},Smoke tests:${{ steps.smoke.outcome }}"
           STEP_OUTCOMES="${STEP_OUTCOMES},End-to-end test:${{ steps.e2e.outcome }}"
-          STACK=$(yarn tsx src/ci/fetch-failed-logs.ts --steps "${STEP_OUTCOMES}" 2>/dev/null || echo "")
+          STACK=$(yarn tsx src/ci/fetch-failed-logs.ts --steps "${STEP_OUTCOMES}" 2>&1 || echo "")
+
+          # If the log fetcher returned nothing useful, try to reproduce the
+          # failing install step's output directly (most common failure mode).
+          if [ -z "$(echo "$STACK" | grep -v '^\[self-repair\]' | xargs)" ]; then
+            echo -e "\033[35m[self-repair] Log fetcher returned no output, reproducing install failure...\033[0m"
+            STACK=$(yarn install --immutable 2>&1 || true)
+          fi
 
           ERROR_MESSAGE="CI validation failed on branch '${BRANCH}' (${SHA:0:7}). ${FAILURES}"
 
