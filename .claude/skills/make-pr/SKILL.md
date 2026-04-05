@@ -22,10 +22,10 @@ Create a branch, commit the changes, and push to the remote so a pull request ca
 
 ## PR Template Discovery
 
-Before writing your PR body, check whether the repository has an existing pull request template:
+Before writing your PR metadata, check whether the repository has an existing pull request template:
 1. Look for `PULL_REQUEST_TEMPLATE.md` in `.github/`, `docs/`, or the repo root.
 2. Also check `.github/PULL_REQUEST_TEMPLATE/` for multiple templates.
-3. If a template exists, read it and structure the `prBody` field to follow that template's format. Fill in its sections with the relevant details from the bug report and your changes.
+3. If a template exists, read it and structure the PR body to follow that template's format.
 4. If no template exists, use the default PR body format shown below.
 
 ## Rules
@@ -36,22 +36,17 @@ Before writing your PR body, check whether the repository has an existing pull r
 - Do not configure or override git identity settings.
 - PR titles must be prefixed with `Self repair:` (e.g., `Self repair: fix null pointer in auth middleware`).
 
-## Output Format
+## Output
 
-After pushing, you MUST respond with ONLY a JSON block (no other text):
+After pushing, you MUST write a file at `.self-repair/pr-metadata.md` in the repository root with this exact format:
 
-```json
-{
-  "branch": "self-repair/fix-description",
-  "commitMessage": "fix: description of what was fixed",
-  "prTitle": "Self repair: fix description of what was fixed",
-  "prBody": "<PR body following repo template if found, otherwise default format below>"
-}
-```
+```markdown
+---
+branch: self-repair/fix-description
+commitMessage: "fix: description of what was fixed"
+prTitle: "Self repair: fix description of what was fixed"
+---
 
-### Default PR body format (when no repo template exists)
-
-```
 ## Summary
 <1-3 sentence overview of the fix>
 
@@ -67,3 +62,7 @@ After pushing, you MUST respond with ONLY a JSON block (no other text):
 ---
 *Automated fix by [self-repair](https://www.npmjs.com/package/self-repair)*
 ```
+
+The content below the frontmatter becomes the PR body. If you found a repo PR template, use that format for the body instead.
+
+After writing the file, confirm you have done so. Do not output the PR metadata as text — only write it to the file.

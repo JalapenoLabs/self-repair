@@ -15,6 +15,12 @@ Given an error message (and optionally a stack trace), investigate the repositor
 3. How severe it is
 4. How complex a fix would be
 
+## Constraints
+
+- Work ONLY with the source code in this repository and the error information provided.
+- Do NOT fetch CI logs, browse URLs, or use the `gh` CLI. You already have everything you need.
+- Do NOT investigate external services, APIs, or systems. Focus on the code.
+
 ## Process
 
 1. **Read the error carefully.** Identify file names, function names, and line numbers from the error and stack trace.
@@ -33,42 +39,31 @@ Given an error message (and optionally a stack trace), investigate the repositor
 
 Before writing your output, check whether the repository has an existing bug report issue template:
 1. Look in `.github/ISSUE_TEMPLATE/` for any bug report templates (e.g. `bug_report.md`, `bug_report.yml`, `bug.md`).
-2. If a template exists, read it and structure the `description` field of your JSON output to follow that template's format as closely as possible. Fill in the template's sections with your findings.
+2. If a template exists, read it and structure the description to follow that template's format as closely as possible.
 3. If no template exists, use the default format described below.
 
-## Output Format
+## Output
 
-You MUST respond with ONLY a JSON block (no other text). Use this exact structure:
+You MUST write your findings to a file at `.self-repair/bug-report.md` in the repository root. Use this exact format with YAML frontmatter:
 
-```json
-{
-  "title": "Brief descriptive title of the bug",
-  "description": "Detailed description of the root cause and what is happening",
-  "severity": "low|medium|high|critical",
-  "complexity": "simple|complex",
-  "affectedFiles": ["path/to/file1.ts", "path/to/file2.ts"],
-  "reproductionSteps": "Step-by-step description of how this error occurs",
-  "suggestedFix": "Description of the recommended fix approach"
-}
-```
+```markdown
+---
+title: Brief descriptive title of the bug
+severity: low|medium|high|critical
+complexity: simple|complex
+affectedFiles:
+  - path/to/file1.ts
+  - path/to/file2.ts
+---
 
-### Default description format (when no repo template exists)
-
-Use this structure for the `description` field:
-
-```
 ## Description
-<What the bug is and how it manifests>
+Detailed description of the root cause and what is happening.
 
-## Root Cause
-<Technical explanation of why this happens>
+## Reproduction Steps
+Step-by-step description of how this error occurs.
 
-## Expected Behavior
-<What should happen instead>
-
-## Affected Area
-<Which part of the codebase is impacted>
-
-## Additional Context
-<Any relevant logs, environment details, or related issues>
+## Suggested Fix
+Description of the recommended fix approach.
 ```
+
+After writing the file, confirm you have done so. Do not output the bug report as text — only write it to the file.

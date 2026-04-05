@@ -8,6 +8,9 @@ import { createClaudeEngine } from './claude'
 
 vi.mock('../logger', () => ({
   logInfo: vi.fn(),
+  logWarning: vi.fn(),
+  logError: vi.fn(),
+  logUsage: vi.fn(),
   logVerbose: vi.fn(),
   logVerboseStream: vi.fn(),
 }))
