@@ -1,6 +1,6 @@
 {
   "name": "self-repair",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Automatic bug diagnosis and repair for Node.js applications using LLM agents",
   "type": "module",
   "main": "./dist/index.js",
