@@ -237,6 +237,34 @@ The hash (first 16 chars of SHA-256) is also embedded in created issues as an HT
 
 ---
 
+## GitHub Actions
+
+Drop self-repair into any workflow to automatically diagnose and fix CI failures:
+
+```yaml
+- name: Self-repair on failure
+  if: failure()
+  uses: JalapenoLabs/self-repair@v1
+  with:
+    error: "CI failed: ${{ steps.build.outcome }}"
+    claude-api-token: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+On PRs, self-repair auto-detects the PR number and commits fixes directly to the source branch. On pushes, it creates a new issue and opens a PR.
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `error` | Yes | | Error message to diagnose |
+| `engine` | No | `claude` | LLM engine (`claude` or `codex`) |
+| `repo` | No | Current repo | GitHub repository (`owner/repo`) |
+| `claude-api-token` | No | | Anthropic API key |
+| `openai-api-token` | No | | OpenAI API key |
+| `github-token` | No | `github.token` | GitHub token for issues/PRs |
+| `verbose` | No | `false` | Log prompts and engine output |
+| `version` | No | `latest` | self-repair npm version to use |
+
+---
+
 ## Jira Support
 
 When using Jira for issue tracking, PR creation still goes through GitHub (Jira can't create PRs). You'll need both sets of credentials:

@@ -1,0 +1,71 @@
+name: 'Self Repair'
+description: 'Automatically diagnose and repair CI failures using LLM agents'
+author: 'Jalapeno Labs'
+
+branding:
+  icon: 'tool'
+  color: 'purple'
+
+inputs:
+  error:
+    description: 'Error message to diagnose'
+    required: true
+  engine:
+    description: 'LLM engine (claude or codex)'
+    default: 'claude'
+  repo:
+    description: 'GitHub repository (owner/repo)'
+    default: ${{ github.repository }}
+  claude-api-token:
+    description: 'Anthropic API key (required when engine is claude)'
+    required: false
+  openai-api-token:
+    description: 'OpenAI API key (required when engine is codex)'
+    required: false
+  github-token:
+    description: 'GitHub token for creating issues and PRs'
+    default: ${{ github.token }}
+  verbose:
+    description: 'Enable verbose logging of prompts and engine output'
+    default: 'false'
+  version:
+    description: 'Version of self-repair to use (e.g. "0.2.0", "latest")'
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Self Repair
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.claude-api-token }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+      run: |
+        # ─── Self Repair GitHub Action ─────────────────────────────────
+        # Automatically diagnoses CI failures and either files an issue
+        # or commits a fix directly to the PR branch.
+
+        # Auto-detect PR mode: if running on a pull_request event,
+        # pass --pr so the fix is committed to the PR branch.
+        PR_FLAG=""
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR_FLAG="--pr ${{ github.event.pull_request.number }}"
+          echo "[self-repair] PR mode: fixing PR #${{ github.event.pull_request.number }} in-place"
+        fi
+
+        VERBOSE_FLAG=""
+        if [ "${{ inputs.verbose }}" = "true" ]; then
+          VERBOSE_FLAG="--verbose"
+        fi
+
+        echo "[self-repair] Running self-repair v${{ inputs.version }}..."
+
+        npx self-repair@${{ inputs.version }} \
+          --error "${{ inputs.error }}" \
+          --engine "${{ inputs.engine }}" \
+          --repo "${{ inputs.repo }}" \
+          $VERBOSE_FLAG \
+          $PR_FLAG
