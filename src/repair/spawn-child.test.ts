@@ -3,6 +3,7 @@
 import type { ResolvedOptions, RepairTrigger } from '../types'
 
 import { spawn } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -72,14 +73,19 @@ describe('spawnChildProcess', () => {
     expect(child).toBe(mockChild)
   })
 
-  it('serializes the full payload into SELF_REPAIR_PAYLOAD env var', () => {
+  it('writes payload to a temp file and passes the path via env var', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     const options = buildOptions({ repo: 'test/repo' })
     spawnChildProcess(options, trigger)
+
     const [ , , opts ] = vi.mocked(spawn).mock.calls[0]!
-    const rawPayload = (opts as any).env[CHILD_PAYLOAD_ENV_KEY]
-    expect(rawPayload).toBeDefined()
-    const payload = JSON.parse(rawPayload)
+    const payloadPath = (opts as any).env[CHILD_PAYLOAD_ENV_KEY] as string
+
+    // The env var should be a file path, not raw JSON
+    expect(payloadPath).toMatch(/payload-[a-f0-9]+\.json$/)
+
+    // The file should contain the serialized payload
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf-8'))
     expect(payload.options.repo).toBe('test/repo')
     expect(payload.trigger.error).toBe(trigger.error)
     expect(payload.trigger.stack).toBe(trigger.stack)
@@ -89,7 +95,6 @@ describe('spawnChildProcess', () => {
     vi.mocked(spawn).mockReturnValue(mockChild as any)
     spawnChildProcess(buildOptions(), trigger)
     const [ , , opts ] = vi.mocked(spawn).mock.calls[0]!
-    // Should inherit existing env vars
     expect((opts as any).env).toMatchObject(process.env)
   })
 })
