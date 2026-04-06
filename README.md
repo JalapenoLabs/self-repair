@@ -38,7 +38,7 @@ flowchart LR
 - **Crash handler** -- Register once at startup. Fatal `uncaughtException` and `unhandledRejection` errors automatically trigger repair.
 - **Manual trigger** -- Call `startSelfRepair()` from anywhere: API error handlers, frontend error reporters, health checks, CI scripts.
 - **CLI** -- `self-repair --error "message"` for use in pipelines, cron jobs, or manual triage.
-- **Dual engine support** -- [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) and [OpenAI Codex](https://www.npmjs.com/package/@openai/codex-sdk), invoked via their official SDKs.
+- **Dual engine support** -- [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) and [OpenAI Codex](https://www.npmjs.com/package/@openai/codex-sdk), invoked via their official SDKs. *Note: The Codex SDK is currently alpha and pinned to an exact version to avoid unexpected breakage.*
 - **Dual issue tracker** -- GitHub Issues or Jira, with provider polymorphism so adding more is trivial.
 - **Error deduplication** -- SHA-256 hashing with path/timestamp normalization and a 10-minute sliding window. No duplicate issues, no runaway child processes.
 - **Concurrency limiting** -- Configurable max parallel repairs (default 3). Excess requests are dropped gracefully.
