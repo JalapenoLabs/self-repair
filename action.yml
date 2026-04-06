@@ -8,8 +8,12 @@ branding:
 
 inputs:
   error:
-    description: 'Error message to diagnose'
-    required: true
+    description: >
+      Error message to diagnose. If omitted, the action automatically
+      fetches failed step logs from the current workflow run via the
+      GitHub API.
+    required: false
+    default: ''
   engine:
     description: 'LLM engine (claude or codex)'
     default: 'claude'
@@ -35,21 +39,100 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Collect error context
+      id: context
+      if: inputs.error == ''
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # ─── Auto-collect failed step logs from the GitHub API ────────
+        # Uses the Jobs API to find failed steps, then fetches their logs.
+        # No gh CLI dependency -- just curl + jq (both on all runners).
+
+        echo "[self-repair] No --error provided, fetching failed step logs..."
+
+        API="https://api.github.com"
+        REPO="${{ github.repository }}"
+        RUN_ID="${{ github.run_id }}"
+        AUTH="Authorization: Bearer ${GITHUB_TOKEN}"
+
+        # Get all jobs for this run and find failed steps
+        JOBS_JSON=$(curl -s -H "$AUTH" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "$API/repos/$REPO/actions/runs/$RUN_ID/jobs")
+
+        # Extract failed step names and their job IDs.
+        # With continue-on-error, the API reports conclusion as 'success'
+        # even for failed steps. We check for steps whose conclusion is
+        # 'failure' OR steps that are skipped (downstream of a failure).
+        FAILED_STEPS=$(echo "$JOBS_JSON" | jq -r '
+          [.jobs[] | {
+            job_id: .id,
+            job_name: .name,
+            steps: [.steps[] | select(.conclusion == "failure")]
+          } | select(.steps | length > 0)] |
+          .[] | .steps[] | "\(.name) (job: \(.job_id))"
+        ' 2>/dev/null || echo "")
+
+        ERROR_MSG="CI validation failed"
+        STACK=""
+
+        if [ -n "$FAILED_STEPS" ]; then
+          echo "[self-repair] Failed steps: $FAILED_STEPS"
+          ERROR_MSG="CI validation failed. Failed steps: $FAILED_STEPS"
+
+          # Try to fetch logs for the first failed job
+          FIRST_JOB_ID=$(echo "$JOBS_JSON" | jq -r '
+            [.jobs[] | select(.steps | map(select(.conclusion == "failure")) | length > 0)] |
+            .[0].id // empty
+          ' 2>/dev/null || echo "")
+
+          if [ -n "$FIRST_JOB_ID" ]; then
+            LOGS=$(curl -s -H "$AUTH" \
+              -H "Accept: application/vnd.github.v3.raw" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$API/repos/$REPO/actions/jobs/$FIRST_JOB_ID/logs" 2>/dev/null \
+              | tail -100 || echo "")
+
+            if [ -n "$LOGS" ]; then
+              STACK="$LOGS"
+            fi
+          fi
+        else
+          echo "[self-repair] No failed steps found via API, using generic error"
+          ERROR_MSG="CI workflow failed on ${{ github.ref_name }} (${{ github.sha }})"
+        fi
+
+        # Write to files to avoid shell quoting issues with multiline strings
+        echo "$ERROR_MSG" > /tmp/sr-error.txt
+        echo "$STACK" > /tmp/sr-stack.txt
+
     - name: Self Repair
       shell: bash
       env:
         ANTHROPIC_API_KEY: ${{ inputs.claude-api-token }}
         OPENAI_API_KEY: ${{ inputs.openai-api-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
       run: |
-        # ─── Self Repair GitHub Action ─────────────────────────────────
-        # Automatically diagnoses CI failures and either files an issue
-        # or commits a fix directly to the PR branch.
+        # ─── Build the error and stack arguments ──────────────────────
+        if [ -n "${{ inputs.error }}" ]; then
+          ERROR="${{ inputs.error }}"
+          STACK=""
+        elif [ -f /tmp/sr-error.txt ]; then
+          ERROR=$(cat /tmp/sr-error.txt)
+          STACK=$(cat /tmp/sr-stack.txt 2>/dev/null || echo "")
+        else
+          ERROR="CI workflow failed"
+          STACK=""
+        fi
 
-        # Auto-detect PR mode: if running on a pull_request event,
-        # pass --pr so the fix is committed to the PR branch.
+        STACK_FLAG=""
+        if [ -n "$STACK" ]; then
+          STACK_FLAG="--stack"
+        fi
+
+        # Auto-detect PR mode
         PR_FLAG=""
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           PR_FLAG="--pr ${{ github.event.pull_request.number }}"
@@ -63,8 +146,10 @@ runs:
 
         echo "[self-repair] Running self-repair v${{ inputs.version }}..."
 
+        # Use a temp file for --stack to avoid argument length limits
         npx self-repair@${{ inputs.version }} \
-          --error "${{ inputs.error }}" \
+          --error "$ERROR" \
+          ${STACK_FLAG:+--stack "$STACK"} \
           --engine "${{ inputs.engine }}" \
           --repo "${{ inputs.repo }}" \
           $VERBOSE_FLAG \

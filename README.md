@@ -246,15 +246,14 @@ Drop self-repair into any workflow to automatically diagnose and fix CI failures
   if: failure()
   uses: JalapenoLabs/self-repair@v1
   with:
-    error: "CI failed: ${{ steps.build.outcome }}"
     claude-api-token: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-On PRs, self-repair auto-detects the PR number and commits fixes directly to the source branch. On pushes, it creates a new issue and opens a PR.
+That's it. The action automatically fetches the failed step logs from the current workflow run via the GitHub API -- no need to pass an error message. On PRs, it commits fixes directly to the source branch. On pushes, it creates a new issue and opens a PR.
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `error` | Yes | | Error message to diagnose |
+| `error` | No | Auto-detected | Error message (if omitted, fetches failed step logs automatically) |
 | `engine` | No | `claude` | LLM engine (`claude` or `codex`) |
 | `repo` | No | Current repo | GitHub repository (`owner/repo`) |
 | `claude-api-token` | No | | Anthropic API key |
