@@ -59,7 +59,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.92",
     "@octokit/rest": "^21.0.0",
-    "@openai/codex-sdk": "^0.119.0-alpha.10",
+    "@openai/codex-sdk": "0.118.0",
     "chalk": "^5.4.0",
     "commander": "^13.0.0",
     "dotenv": "^16.4.0",
