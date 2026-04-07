@@ -33,7 +33,7 @@ import { commentOnPullRequest } from '../pull-request/comment'
 import { createGitHubPullRequest } from '../pull-request/github'
 import { pruneRunLogs } from '../run-log/pruner'
 import { writeRunLog } from '../run-log/writer'
-import { injectSkills } from '../skills/inject'
+import { injectSkills, resolveSkillsSourcePath } from '../skills/inject'
 import { computeErrorHash } from './deduplication'
 import { parseFrontmatter } from './parse-frontmatter'
 
@@ -603,14 +603,16 @@ export async function executeRepairPipeline(
       recordStep(steps, 'clone-repo', stepStart, true)
     }
 
-    // Inject skills (skip in in-place mode -- skills are already in the repo)
+    // Resolve the skills directory. In in-place mode we read directly from the
+    // package's bundled skills to avoid writing into the target repo. In clone
+    // mode we copy them into the disposable temp directory as before.
     const skillStep = isInPlace ? 2 : 3
     let stepStart = Date.now()
     let skillsDir: string
     if (isInPlace) {
-      skillsDir = join(workDir, '.claude', 'skills')
-      logStep(skillStep, totalSteps, 'Using existing skills (in-place mode)...')
-      recordStep(steps, 'use-existing-skills', stepStart, true, skillsDir)
+      skillsDir = payload.skillsSourcePath ?? resolveSkillsSourcePath()
+      logStep(skillStep, totalSteps, 'Resolving bundled skills...')
+      recordStep(steps, 'resolve-skills', stepStart, true, skillsDir)
     }
     else {
       logStep(skillStep, totalSteps, 'Injecting LLM skills...')
