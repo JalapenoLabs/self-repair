@@ -11,10 +11,10 @@ type EngineFactory = (options: ResolvedOptions) => EngineContract
 
 const engineFactoryByName = {
   claude: (options: ResolvedOptions): EngineContract => {
-    return createClaudeEngine(options.claudeToken)
+    return createClaudeEngine(options.claudeToken, options.model)
   },
   codex: (options: ResolvedOptions): EngineContract => {
-    return createCodexEngine(options.openaiToken)
+    return createCodexEngine(options.openaiToken, options.model)
   },
 } as const satisfies Record<SelfRepairEngine, EngineFactory>
 

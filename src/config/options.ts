@@ -31,6 +31,7 @@ export function setSelfRepairOptions(options: SelfRepairOptions): ResolvedOption
   const resolved: ResolvedOptions = {
     runInProduction: options.runInProduction ?? DEFAULT_RUN_IN_PRODUCTION,
     engine: options.engine ?? DEFAULT_ENGINE,
+    model: options.model,
     issueTracker: options.issueTracker ?? DEFAULT_ISSUE_TRACKER,
     maxParallelRepairs: options.maxParallelRepairs ?? DEFAULT_MAX_PARALLEL_REPAIRS,
     maxLogCount: options.maxLogCount ?? DEFAULT_MAX_LOG_COUNT,

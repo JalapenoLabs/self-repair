@@ -21,7 +21,7 @@ function truncate(text: string, maxLength = 200): string {
  * The SDK spawns a Claude Code process under the hood, giving the agent
  * full access to read, edit, and run commands in the working directory.
  */
-export function createClaudeEngine(apiToken?: string): EngineContract {
+export function createClaudeEngine(apiToken?: string, model?: string): EngineContract {
   async function invoke(options: EngineInvokeOptions): Promise<EngineResult> {
     logInfo(`Invoking Claude engine in ${options.workingDirectory}`)
 
@@ -40,6 +40,7 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
     try {
       const session = query({
         prompt: options.prompt,
+        ...(model ? { model } : {}),
         options: {
           cwd: options.workingDirectory,
           maxTurns: options.maxTurns,
