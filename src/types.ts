@@ -16,6 +16,9 @@ export type SelfRepairOptions = {
   /** Which LLM engine to use for diagnosis and repair. Defaults to 'claude'. */
   engine?: SelfRepairEngine
 
+  /** Model identifier to pass to the engine (e.g. 'claude-sonnet-4-6'). Falls back to engine default. */
+  model?: string
+
   /** OpenAI API token. Falls back to OPENAI_API_KEY env, then ~/.codex config. */
   OPENAI_API_TOKEN?: string
 
@@ -76,6 +79,7 @@ export type SelfRepairOptions = {
 export type ResolvedOptions = {
   runInProduction: boolean
   engine: SelfRepairEngine
+  model?: string
   issueTracker: IssueTrackerKind
   maxParallelRepairs: number
   maxLogCount: number

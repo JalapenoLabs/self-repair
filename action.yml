@@ -17,6 +17,10 @@ inputs:
   engine:
     description: 'LLM engine (claude or codex)'
     default: 'claude'
+  model:
+    description: 'Model identifier to pass to the engine (e.g. claude-sonnet-4-6). Falls back to engine default.'
+    required: false
+    default: ''
   repo:
     description: 'GitHub repository (owner/repo)'
     default: ${{ github.repository }}
@@ -142,6 +146,11 @@ runs:
           echo "[self-repair] PR mode: fixing PR #${{ github.event.pull_request.number }} in-place"
         fi
 
+        MODEL_FLAG=""
+        if [ -n "${{ inputs.model }}" ]; then
+          MODEL_FLAG="--model ${{ inputs.model }}"
+        fi
+
         VERBOSE_FLAG=""
         if [ "${{ inputs.verbose }}" = "true" ]; then
           VERBOSE_FLAG="--verbose"
@@ -156,5 +165,6 @@ runs:
           --engine "${{ inputs.engine }}" \
           --repo "${{ inputs.repo }}" \
           --max-turns "${{ inputs.max-turns }}" \
+          $MODEL_FLAG \
           $VERBOSE_FLAG \
           $PR_FLAG

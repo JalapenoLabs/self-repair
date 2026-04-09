@@ -10,7 +10,7 @@ import { logInfo, logUsage, logVerbose, logVerboseStream } from '../logger'
  * Creates an engine that invokes OpenAI Codex via the official SDK.
  * The SDK wraps the Codex CLI, exchanging JSONL events over stdin/stdout.
  */
-export function createCodexEngine(apiToken?: string): EngineContract {
+export function createCodexEngine(apiToken?: string, model?: string): EngineContract {
   async function invoke(options: EngineInvokeOptions): Promise<EngineResult> {
     logInfo(`Invoking Codex engine in ${options.workingDirectory}`)
 
@@ -33,6 +33,7 @@ export function createCodexEngine(apiToken?: string): EngineContract {
         skipGitRepoCheck: true,
         approvalPolicy: 'never',
         sandboxMode: 'danger-full-access',
+        ...(model ? { model } : {}),
       })
 
       // In verbose mode, use streaming to show real-time output

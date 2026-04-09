@@ -22,6 +22,7 @@ program
   .requiredOption('--error <message>', 'Error message or description to diagnose')
   .option('--stack <trace>', 'Stack trace from the error')
   .option('--engine <engine>', 'LLM engine to use (claude or codex)', 'claude')
+  .option('--model <model>', 'Model identifier to pass to the engine (e.g. claude-sonnet-4-6)')
   .option('--repo <owner/repo>', 'GitHub repository (owner/repo format)')
   .option(
     '--issue-tracker <tracker>',
@@ -40,6 +41,7 @@ program
     error: string
     stack?: string
     engine: string
+    model?: string
     repo?: string
     issueTracker: string
     runInProduction?: boolean
@@ -53,6 +55,7 @@ program
 
       setSelfRepairOptions({
         engine: flags.engine as 'claude' | 'codex',
+        model: flags.model,
         repo: flags.repo ?? process.env.SELF_REPAIR_REPO,
         runInProduction: flags.runInProduction ?? false,
         issueTracker: flags.issueTracker as 'github' | 'jira',
