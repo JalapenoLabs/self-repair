@@ -321,6 +321,7 @@ async function executeStandardPipeline(
   const repairResult = await engine.invoke({
     workingDirectory: workDir,
     prompt: repairPrompt,
+    maxTurns: payload.options.maxTurns,
     verbose: payload.options.verbose,
   })
 
@@ -345,6 +346,7 @@ async function executeStandardPipeline(
   const makePrResult = await engine.invoke({
     workingDirectory: workDir,
     prompt: makePrPrompt,
+    maxTurns: payload.options.maxTurns,
     verbose: payload.options.verbose,
   })
 
@@ -447,6 +449,7 @@ async function executePrRepairPipeline(
   const repairResult = await engine.invoke({
     workingDirectory: workDir,
     prompt: repairPrompt,
+    maxTurns: payload.options.maxTurns,
     verbose: payload.options.verbose,
   })
 
@@ -490,6 +493,7 @@ async function executePrRepairPipeline(
     const commitFixResult = await engine.invoke({
       workingDirectory: workDir,
       prompt: commitFixPrompt,
+      maxTurns: payload.options.maxTurns,
       verbose: payload.options.verbose,
     })
 
@@ -633,6 +637,7 @@ export async function executeRepairPipeline(
     const bugReportResult = await engine.invoke({
       workingDirectory: workDir,
       prompt: bugReportPrompt,
+      maxTurns: payload.options.maxTurns,
       verbose: payload.options.verbose,
     })
 

@@ -47,6 +47,7 @@ describe('createCodexEngine', () => {
     const result = await createCodexEngine('api-key').invoke({
       workingDirectory: '/tmp/repo',
       prompt: 'Fix the bug',
+      maxTurns: 50,
       verbose: false,
     })
 
@@ -68,6 +69,7 @@ describe('createCodexEngine', () => {
     const result = await createCodexEngine('api-key').invoke({
       workingDirectory: '/tmp/repo',
       prompt: 'Fix',
+      maxTurns: 50,
       verbose: true,
     })
 
@@ -83,6 +85,7 @@ describe('createCodexEngine', () => {
     const result = await createCodexEngine().invoke({
       workingDirectory: '/tmp',
       prompt: 'test',
+      maxTurns: 50,
       verbose: false,
     })
 
@@ -94,7 +97,7 @@ describe('createCodexEngine', () => {
   it('passes workingDirectory to startThread', async () => {
     mockRun.mockResolvedValue({ finalResponse: '' })
 
-    await createCodexEngine().invoke({ workingDirectory: '/specific/dir', prompt: 'p' })
+    await createCodexEngine().invoke({ workingDirectory: '/specific/dir', prompt: 'p', maxTurns: 50 })
 
     expect(mockStartThread).toHaveBeenCalledWith(
       expect.objectContaining({ workingDirectory: '/specific/dir' }),

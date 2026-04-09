@@ -30,6 +30,7 @@ program
   )
   .option('--run-in-production', 'Allow running in production environments')
   .option('--max-log-count <count>', 'Maximum number of run logs to keep', '50')
+  .option('--max-turns <count>', 'Maximum conversation turns per engine invocation', '50')
   .option('--verbose', 'Log prompts and engine output for debugging')
   .option(
     '--pr <number>',
@@ -43,6 +44,7 @@ program
     issueTracker: string
     runInProduction?: boolean
     maxLogCount: string
+    maxTurns: string
     verbose?: boolean
     pr?: string
   }) => {
@@ -55,6 +57,7 @@ program
         runInProduction: flags.runInProduction ?? false,
         issueTracker: flags.issueTracker as 'github' | 'jira',
         maxLogCount: parseInt(flags.maxLogCount, 10),
+        maxTurns: parseInt(flags.maxTurns, 10),
         verbose: flags.verbose ?? false,
         pullRequestNumber: flags.pr ? parseInt(flags.pr, 10) : undefined,
         // Tokens are resolved from process.env (populated by dotenv)

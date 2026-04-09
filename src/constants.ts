@@ -38,8 +38,8 @@ export const ISSUE_HASH_PREFIX = 'self-repair-hash'
 
 // ─── Engine ─────────────────────────────────────────────────────────────────
 
-/** Maximum conversation turns allowed for a single engine invocation. */
-export const ENGINE_MAX_TURNS = 50
+/** Default maximum conversation turns allowed for a single engine invocation. */
+export const DEFAULT_MAX_TURNS = 50
 
 // ─── Child Process ──────────────────────────────────────────────────────────
 

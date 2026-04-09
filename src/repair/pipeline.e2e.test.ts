@@ -153,6 +153,7 @@ describe.runIf(process.env.ANTHROPIC_API_KEY)(
         issueTracker: 'github',
         maxParallelRepairs: 3,
         maxLogCount: 50,
+        maxTurns: 50,
         verbose: true,
         claudeToken: process.env.ANTHROPIC_API_KEY,
         githubToken: 'fake-gh-token',

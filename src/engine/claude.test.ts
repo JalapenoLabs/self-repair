@@ -47,7 +47,7 @@ describe('createClaudeEngine', () => {
     )
 
     const engine = createClaudeEngine('test-token')
-    const result = await engine.invoke({ workingDirectory: '/tmp/repo', prompt: 'Analyze' })
+    const result = await engine.invoke({ workingDirectory: '/tmp/repo', prompt: 'Analyze', maxTurns: 50 })
 
     expect(result.success).toBe(true)
     expect(result.output).toContain('Analysis complete.')
@@ -65,7 +65,7 @@ describe('createClaudeEngine', () => {
     )
 
     const engine = createClaudeEngine()
-    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'p' })
+    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'p', maxTurns: 50 })
 
     expect(result.output).toContain('Part 1')
     expect(result.output).toContain('Part 2')
@@ -88,7 +88,7 @@ describe('createClaudeEngine', () => {
     )
 
     const engine = createClaudeEngine()
-    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'p' })
+    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'p', maxTurns: 50 })
 
     expect(result.output).toContain('Only this')
     expect(result.output).not.toContain('read_file')
@@ -100,7 +100,7 @@ describe('createClaudeEngine', () => {
     })
 
     const engine = createClaudeEngine()
-    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'test' })
+    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'test', maxTurns: 50 })
 
     expect(result.success).toBe(false)
     expect(result.output).toContain('API key invalid')
@@ -116,7 +116,7 @@ describe('createClaudeEngine', () => {
     )
 
     const engine = createClaudeEngine()
-    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'test' })
+    const result = await engine.invoke({ workingDirectory: '/tmp', prompt: 'test', maxTurns: 50 })
 
     expect(result.success).toBe(false)
     expect(result.output).toContain('Started...')

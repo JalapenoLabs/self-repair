@@ -29,6 +29,9 @@ inputs:
   github-token:
     description: 'GitHub token for creating issues and PRs'
     default: ${{ github.token }}
+  max-turns:
+    description: 'Maximum conversation turns per engine invocation'
+    default: '50'
   verbose:
     description: 'Enable verbose logging of prompts and engine output'
     default: 'false'
@@ -152,5 +155,6 @@ runs:
           ${STACK_FLAG:+--stack "$STACK"} \
           --engine "${{ inputs.engine }}" \
           --repo "${{ inputs.repo }}" \
+          --max-turns "${{ inputs.max-turns }}" \
           $VERBOSE_FLAG \
           $PR_FLAG

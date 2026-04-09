@@ -57,6 +57,9 @@ export type SelfRepairOptions = {
   /** Jira account email for basic auth. */
   jiraEmail?: string
 
+  /** Maximum conversation turns per engine invocation. Defaults to 50. */
+  maxTurns?: number
+
   /** Enable verbose logging of prompts and engine output. */
   verbose?: boolean
 
@@ -76,6 +79,7 @@ export type ResolvedOptions = {
   issueTracker: IssueTrackerKind
   maxParallelRepairs: number
   maxLogCount: number
+  maxTurns: number
   claudeToken?: string
   openaiToken?: string
   githubToken?: string
@@ -137,6 +141,7 @@ export type EngineResult = {
 export type EngineInvokeOptions = {
   workingDirectory: string
   prompt: string
+  maxTurns: number
   verbose?: boolean
 }
 
