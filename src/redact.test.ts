@@ -13,6 +13,7 @@ function makeOptions(overrides: Partial<ResolvedOptions> = {}): ResolvedOptions 
     issueTracker: 'github',
     maxParallelRepairs: 3,
     maxLogCount: 50,
+    maxTurns: 50,
     verbose: false,
     ...overrides,
   }

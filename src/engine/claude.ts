@@ -4,7 +4,6 @@ import type { EngineContract, EngineInvokeOptions, EngineResult, EngineUsageStat
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
-import { ENGINE_MAX_TURNS } from '../constants'
 import { logError, logInfo, logUsage, logVerbose, logVerboseStream, logWarning } from '../logger'
 
 /**
@@ -43,7 +42,7 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
         prompt: options.prompt,
         options: {
           cwd: options.workingDirectory,
-          maxTurns: ENGINE_MAX_TURNS,
+          maxTurns: options.maxTurns,
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
           persistSession: false,
@@ -124,16 +123,16 @@ export function createClaudeEngine(apiToken?: string): EngineContract {
             resultMessage.subtype === 'error_max_turns'
             || resultMessage.terminal_reason === 'max_turns'
           ) {
-            const turns = resultMessage.num_turns ?? ENGINE_MAX_TURNS
+            const turns = resultMessage.num_turns ?? options.maxTurns
             logError(
-              `Claude hit the maximum turn limit (${turns}/${ENGINE_MAX_TURNS}). `
+              `Claude hit the maximum turn limit (${turns}/${options.maxTurns}). `
               + 'The agent ran out of steps before completing its task. '
               + 'This usually means it got distracted or the task is too complex.',
             )
             logUsage('claude', usageStats)
             return {
               success: false,
-              output: `Max turns reached (${turns}/${ENGINE_MAX_TURNS}). `
+              output: `Max turns reached (${turns}/${options.maxTurns}). `
                 + `Partial output:\n${outputChunks.join('\n')}`,
               exitCode: 1,
               usage: usageStats,

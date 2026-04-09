@@ -42,6 +42,7 @@ describe('options', () => {
       expect(resolved.issueTracker).toBe('github')
       expect(resolved.maxParallelRepairs).toBe(3)
       expect(resolved.maxLogCount).toBe(50)
+      expect(resolved.maxTurns).toBe(50)
     })
 
     it('respects explicitly provided values', () => {
@@ -51,6 +52,7 @@ describe('options', () => {
         issueTracker: 'jira',
         maxParallelRepairs: 5,
         maxLogCount: 100,
+        maxTurns: 25,
         repo: 'owner/repo',
       })
       expect(resolved.runInProduction).toBe(true)
@@ -58,6 +60,7 @@ describe('options', () => {
       expect(resolved.issueTracker).toBe('jira')
       expect(resolved.maxParallelRepairs).toBe(5)
       expect(resolved.maxLogCount).toBe(100)
+      expect(resolved.maxTurns).toBe(25)
       expect(resolved.repo).toBe('owner/repo')
     })
 

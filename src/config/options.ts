@@ -7,6 +7,7 @@ import {
   DEFAULT_ISSUE_TRACKER,
   DEFAULT_MAX_LOG_COUNT,
   DEFAULT_MAX_PARALLEL_REPAIRS,
+  DEFAULT_MAX_TURNS,
   DEFAULT_RUN_IN_PRODUCTION,
 } from '../constants'
 import { logWarning } from '../logger'
@@ -33,6 +34,7 @@ export function setSelfRepairOptions(options: SelfRepairOptions): ResolvedOption
     issueTracker: options.issueTracker ?? DEFAULT_ISSUE_TRACKER,
     maxParallelRepairs: options.maxParallelRepairs ?? DEFAULT_MAX_PARALLEL_REPAIRS,
     maxLogCount: options.maxLogCount ?? DEFAULT_MAX_LOG_COUNT,
+    maxTurns: options.maxTurns ?? DEFAULT_MAX_TURNS,
     verbose: options.verbose ?? false,
     pullRequestNumber: options.pullRequestNumber,
     claudeToken: tokens.claudeToken,
